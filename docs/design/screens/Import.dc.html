@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Import documents</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:6px;border:1px solid #2C2E33;cursor:pointer}
+.opt input{margin:2px 0 0;accent-color:#E8A33D;width:15px;height:15px}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 14px;border-bottom:1px solid #2C2E33;white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid #232529;vertical-align:top}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="documents" active-collection="products" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #2C2E33">
+      <a href="Collections.dc.html" style="color: #9A9890; text-decoration: none">Collections</a>
+      <span style="color: #5E5C57" aria-hidden="true">/</span>
+      <a href="Documents.dc.html" style="color: #9A9890; text-decoration: none; font-family: 'IBM Plex Mono', ui-monospace, monospace">products</a>
+      <span style="color: #5E5C57" aria-hidden="true">/</span>
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600">Import JSONL</h1>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; padding: 20px 24px 24px; align-items: flex-start">
+      <section aria-label="Import settings" style="flex: 1 1 300px; min-width: 0; max-width: 360px; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 12px; font-weight: 500; color: #B9B7AF">File</span>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px; border: 1px solid #2C2E33; background: #17181B">
+            <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 1.5h5.5L13 5v9.5H4z M9.5 1.5V5H13" fill="none" stroke="#9A9890" stroke-width="1.3"></path></svg>
+            <span style="display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0">
+              <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">products-2026-10.jsonl</span>
+              <span style="font-size: 12px; color: #8F8D86">2,400 lines · 1.8 MB</span>
+            </span>
+            <button type="button" class="btn" style="height: 28px; font-size: 12px">Change</button>
+          </div>
+        </div>
+
+        <fieldset style="margin: 0; padding: 0; border: none; display: flex; flex-direction: column; gap: 6px">
+          <legend style="font-size: 12px; font-weight: 500; color: #B9B7AF; margin-bottom: 6px">Action</legend>
+          <label class="opt" style="border-color: #E8A33D; background: #1E1A12">
+            <input type="radio" name="action" checked>
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">create</span><span style="font-size: 12px; color: #9A9890">Fail rows whose id already exists</span></span>
+          </label>
+          <label class="opt">
+            <input type="radio" name="action">
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">upsert</span><span style="font-size: 12px; color: #F7C978">Replaces existing documents. Asks to confirm.</span></span>
+          </label>
+          <label class="opt">
+            <input type="radio" name="action">
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">update</span><span style="font-size: 12px; color: #9A9890">Patch existing documents only</span></span>
+          </label>
+          <label class="opt">
+            <input type="radio" name="action">
+            <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">emplace</span><span style="font-size: 12px; color: #9A9890">Create new, patch existing</span></span>
+          </label>
+        </fieldset>
+        <button type="button" class="btn btn-primary" style="justify-content: center">Run import again</button>
+      </section>
+
+      <section aria-label="Results" style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 16px 18px; border-radius: 8px; border: 1px solid #2C2E33; background: #17181B">
+          <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9A9890">Imported</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px; color: #8FE0B0">2,396</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9A9890">Failed</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px; color: #F59A85">4</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9A9890">Took</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">3.4 s</span></div>
+          <span style="flex: 1"></span>
+          <button type="button" class="btn">Save failed rows…</button>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; flex: 1">Per-row results</h2>
+          <div role="group" aria-label="Filter rows" style="display: inline-flex; gap: 2px; padding: 2px; border-radius: 7px; background: #17181B; border: 1px solid #2C2E33">
+            <button type="button" aria-pressed="true" style="height: 26px; padding: 0 10px; border: none; border-radius: 5px; background: #2E3036; color: #FFFFFF; font: 500 12px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer">Failed (4)</button>
+            <button type="button" style="height: 26px; padding: 0 10px; border: none; border-radius: 5px; background: transparent; color: #B9B7AF; font: 500 12px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer">All (2,400)</button>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #2C2E33; border-radius: 8px; background: #17181B; overflow-x: auto">
+          <table style="border-collapse: collapse; width: 100%; min-width: 560px">
+            <thead><tr><th style="text-align: right">Line</th><th>id</th><th>Typesense error</th></tr></thead>
+            <tbody style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px">
+              <tr><td style="text-align: right; color: #9A9890">118</td><td>sku-6631</td><td style="color: #F59A85">Field `price` must be a float.</td></tr>
+              <tr><td style="text-align: right; color: #9A9890">902</td><td>sku-4471</td><td style="color: #F59A85">A document with id sku-4471 already exists.</td></tr>
+              <tr><td style="text-align: right; color: #9A9890">1,377</td><td style="color: #8F8D86">—</td><td style="color: #F59A85">Field `name` has been declared in the schema, but is not found in the document.</td></tr>
+              <tr><td style="text-align: right; color: #9A9890; border-bottom: none">2,051</td><td style="color: #8F8D86; border-bottom: none">—</td><td style="color: #F59A85; border-bottom: none">Bad JSON.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

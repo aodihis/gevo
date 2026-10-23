@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Collections</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;border:1px solid transparent;background:transparent;cursor:pointer;text-decoration:none}
+.icon-btn:hover{background:#2A2C31;border-color:#34363C}
+.input{height:32px;box-sizing:border-box;padding:0 10px;border-radius:6px;border:1px solid #34363C;background:#121315;color:#E7E5E0;font:13px 'IBM Plex Sans',system-ui,sans-serif}
+.input:focus{outline:2px solid #E8A33D;outline-offset:-1px}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 14px;border-bottom:1px solid #2C2E33;white-space:nowrap}
+td{padding:8px 14px;border-bottom:1px solid #232529;white-space:nowrap}
+.name{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;color:#F0B45A;text-decoration:none;font-weight:500}
+.name:hover{color:#F7CE8C;text-decoration:underline}
+.num{text-align:right;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="collections" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 24px; min-height: 52px; box-sizing: border-box; border-bottom: 1px solid #2C2E33">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600">Collections</h1>
+      <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9A9890; flex: 1">6</span>
+      <label for="filter" style="position: absolute; left: -9999px">Filter collections</label>
+      <input id="filter" class="input" placeholder="Filter by name" style="width: 220px">
+      <button type="button" class="btn" aria-label="Refresh">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M12 7a5 5 0 11-1.5-3.6M12 2v3h-3" fill="none" stroke="#E7E5E0" stroke-width="1.4"></path></svg>
+      </button>
+      <a href="SchemaEditor.dc.html" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M2 7h10" stroke="#1A1408" stroke-width="1.6"></path></svg>
+        New collection
+      </a>
+    </header>
+
+    <div style="padding: 20px 24px">
+      <div style="border: 1px solid #2C2E33; border-radius: 8px; background: #17181B; overflow-x: auto">
+        <table style="border-collapse: collapse; width: 100%; min-width: 760px">
+          <thead>
+            <tr><th>Name</th><th style="text-align: right">Documents</th><th style="text-align: right">Fields</th><th>Default sort</th><th>Created</th><th style="text-align: right"><span style="position: absolute; left: -9999px">Actions</span></th></tr>
+          </thead>
+          <tbody>
+            <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+              <tr>
+                <td><a href="Documents.dc.html" class="name">{{r.name}}</a></td>
+                <td class="num">{{r.docs}}</td>
+                <td class="num">{{r.fields}}</td>
+                <td style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #B9B7AF">{{r.sort}}</td>
+                <td style="color: #B9B7AF">{{r.created}}</td>
+                <td>
+                  <div style="display: flex; gap: 2px; justify-content: flex-end">
+                    <a href="SchemaEditor.dc.html" class="icon-btn" aria-label="Edit schema of {{r.name}}" title="Edit schema">
+                      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h8M2 12h5" stroke="#B9B7AF" stroke-width="1.4"></path></svg>
+                    </a>
+                    <button type="button" class="icon-btn" aria-label="Clone schema of {{r.name}}" title="Clone schema">
+                      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="#B9B7AF" stroke-width="1.3"></rect><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" fill="none" stroke="#B9B7AF" stroke-width="1.3"></path></svg>
+                    </button>
+                    <a href="ConfirmDelete.dc.html" class="icon-btn" aria-label="Delete {{r.name}}" title="Delete collection">
+                      <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4" fill="none" stroke="#F59A85" stroke-width="1.3"></path></svg>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      rows: [
+        { name: 'products', docs: '48,210', fields: 14, sort: 'popularity', created: '12 Mar 2026' },
+        { name: 'articles', docs: '9,833', fields: 11, sort: 'published_at', created: '02 Apr 2026' },
+        { name: 'users_v2', docs: '120,544', fields: 9, sort: 'signup_at', created: '19 May 2026' },
+        { name: 'geo_places', docs: '3,201', fields: 7, sort: '—', created: '30 Jun 2026' },
+        { name: 'support_tickets', docs: '0', fields: 12, sort: 'opened_at', created: '21 Oct 2026' },
+        { name: 'embeddings_demo', docs: '2,000', fields: 5, sort: '—', created: '08 Sep 2026' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

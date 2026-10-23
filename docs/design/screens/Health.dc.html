@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Health</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 14px;border-bottom:1px solid #2C2E33;white-space:nowrap}
+td{padding:9px 14px;border-bottom:1px solid #232529}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="health" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 24px; min-height: 52px; box-sizing: border-box; border-bottom: 1px solid #2C2E33">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600; flex: 1">Health</h1>
+      <span style="color: #8F8D86; font-size: 12px">Snapshot taken 14:32:07</span>
+      <label for="auto" style="display: flex; align-items: center; gap: 8px; color: #B9B7AF; cursor: pointer">
+        <input id="auto" type="checkbox" style="width: 16px; height: 16px; accent-color: #E8A33D; margin: 0">
+        Auto-refresh every 10 s
+      </label>
+      <button type="button" class="btn">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M12 7a5 5 0 11-1.5-3.6M12 2v3h-3" fill="none" stroke="#E7E5E0" stroke-width="1.4"></path></svg>
+        Refresh
+      </button>
+    </header>
+
+    <div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 20px; max-width: 1080px; width: 100%; box-sizing: border-box">
+      <section style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding: 18px 20px; border: 1px solid #2C2E33; border-radius: 8px; background: #17181B">
+        <div style="display: flex; align-items: center; gap: 12px">
+          <span style="width: 12px; height: 12px; border-radius: 50%; background: #6CCB94"></span>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 18px; font-weight: 600">Healthy</span>
+            <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9A9890">GET /health → {"ok": true}</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 28px; margin-left: auto">
+          <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9A9890">Round trip</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px">41 ms</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9A9890">Route</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px">SSH · bastion-1</span></div>
+          <div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 12px; color: #9A9890">Node</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px">10.0.4.12:8108</span></div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: baseline; gap: 10px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600">Request stats</h2>
+          <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #8F8D86">/stats.json</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 1px; background: #2C2E33; border: 1px solid #2C2E33; border-radius: 8px; overflow: hidden">
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Total req/s</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">184.6</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Search req/s</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">171.2</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Search latency</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">3.8 <span style="font-size: 13px; color: #9A9890">ms</span></span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Write req/s</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">12.9</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Write latency</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">9.1 <span style="font-size: 13px; color: #9A9890">ms</span></span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Import latency</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">—</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Pending write batches</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">0</span></div>
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: #17181B"><span style="font-size: 12px; color: #9A9890">Overloaded req/s</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 22px">0</span></div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 10px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600">By endpoint</h2>
+        <div style="border: 1px solid #2C2E33; border-radius: 8px; background: #17181B; overflow-x: auto">
+          <table style="border-collapse: collapse; width: 100%; min-width: 560px">
+            <thead><tr><th>Endpoint</th><th style="text-align: right">req/s</th><th style="text-align: right">Latency</th></tr></thead>
+            <tbody style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px">
+              <tr><td>GET /collections/products/documents/search</td><td style="text-align: right">128.4</td><td style="text-align: right">3.2 ms</td></tr>
+              <tr><td>GET /collections/articles/documents/search</td><td style="text-align: right">42.8</td><td style="text-align: right">5.6 ms</td></tr>
+              <tr><td>POST /collections/users_v2/documents</td><td style="text-align: right">12.9</td><td style="text-align: right">9.1 ms</td></tr>
+              <tr><td style="border-bottom: none">GET /health</td><td style="text-align: right; border-bottom: none">0.5</td><td style="text-align: right; border-bottom: none">0.1 ms</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <span style="font-size: 12px; color: #8F8D86">A single snapshot of this node. Gevo keeps no history.</span>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

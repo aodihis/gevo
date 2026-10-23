@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Edit schema</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-sm{height:26px;padding:0 9px;font-size:12px}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+.tab{display:inline-flex;align-items:center;height:40px;padding:0 2px;color:#9A9890;text-decoration:none;border-bottom:2px solid transparent;font-weight:500}
+.tab:hover{color:#E7E5E0}
+.tab-on{color:#FFFFFF;border-bottom-color:#E8A33D}
+.input{height:30px;box-sizing:border-box;width:100%;padding:0 8px;border-radius:5px;border:1px solid #34363C;background:#121315;color:#E7E5E0;font:12px 'IBM Plex Mono',ui-monospace,monospace}
+.input:disabled{background:transparent;border-color:transparent;color:#CFCDC6;opacity:1}
+.input:focus{outline:2px solid #E8A33D;outline-offset:-1px}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 10px;border-bottom:1px solid #2C2E33;white-space:nowrap}
+td{padding:5px 10px;border-bottom:1px solid #232529;white-space:nowrap}
+.cb{width:15px;height:15px;accent-color:#E8A33D;margin:0}
+.cb:disabled{opacity:.45}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="documents" active-collection="products" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 0 24px; border-bottom: 1px solid #2C2E33">
+      <div style="display: flex; align-items: center; gap: 8px; min-height: 52px; flex: 1">
+        <a href="Collections.dc.html" style="color: #9A9890; text-decoration: none">Collections</a>
+        <span style="color: #5E5C57" aria-hidden="true">/</span>
+        <h1 style="margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; font-weight: 600">products</h1>
+      </div>
+      <nav aria-label="Collection" style="display: flex; gap: 20px; align-self: flex-end">
+        <a href="Documents.dc.html" class="tab">Documents</a>
+        <a href="SchemaEditor.dc.html" class="tab tab-on" aria-current="page">Schema</a>
+      </nav>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; padding: 18px 24px 24px; align-items: flex-start">
+      <section style="flex: 999 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; flex: 1">Fields <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 400; color: #9A9890">14</span></h2>
+          <div role="group" aria-label="Editor mode" style="display: inline-flex; gap: 2px; padding: 2px; border-radius: 7px; background: #17181B; border: 1px solid #2C2E33">
+            <button type="button" aria-pressed="true" style="height: 26px; padding: 0 10px; border: none; border-radius: 5px; background: #2E3036; color: #FFFFFF; font: 500 12px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer">Form</button>
+            <button type="button" style="height: 26px; padding: 0 10px; border: none; border-radius: 5px; background: transparent; color: #B9B7AF; font: 500 12px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer">Raw JSON</button>
+          </div>
+          <button type="button" class="btn btn-sm">
+            <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M2 7h10" stroke="#E7E5E0" stroke-width="1.6"></path></svg>
+            Add field
+          </button>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 6px; border: 1px solid #2C2E33; background: #17181B; color: #B9B7AF; line-height: 1.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" style="flex: none; margin-top: 1px" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="#9A9890" stroke-width="1.4"></rect><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="#9A9890" stroke-width="1.4"></path></svg>
+          <span>Existing fields are locked. Typesense can add or drop fields on a live collection, but can't change a field's type or flags in place. To change one, drop it and add it again in the same update (the field is re-indexed).</span>
+        </div>
+
+        <div style="border: 1px solid #2C2E33; border-radius: 8px; background: #17181B; overflow-x: auto">
+          <table style="border-collapse: collapse; width: 100%; min-width: 720px">
+            <thead>
+              <tr><th style="width: 30%">Name</th><th>Type</th><th style="text-align: center">Facet</th><th style="text-align: center">Index</th><th style="text-align: center">Optional</th><th style="text-align: center">Sort</th><th></th></tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{fields}}" as="f" hint-placeholder-count="10">
+                <tr style="background: {{f.rowBg}}">
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 6px">
+                      <label for="n-{{f.name}}" style="position: absolute; left: -9999px">Field name</label>
+                      <input id="n-{{f.name}}" class="input" value="{{f.name}}" disabled="{{f.locked}}" style="text-decoration: {{f.strike}}">
+                    </div>
+                  </td>
+                  <td>
+                    <sc-if value="{{f.locked}}" hint-placeholder-val="{{ true }}">
+                      <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #CFCDC6">{{f.type}}</span>
+                    </sc-if>
+                    <sc-if value="{{f.editable}}" hint-placeholder-val="{{ false }}">
+                      <label for="t-{{f.name}}" style="position: absolute; left: -9999px">Type</label>
+                      <select id="t-{{f.name}}" class="input" style="width: 120px"><option>{{f.type}}</option><option>string[]</option><option>int32</option><option>int64</option><option>float</option><option>bool</option><option>geopoint</option><option>object</option><option>auto</option></select>
+                    </sc-if>
+                  </td>
+                  <td style="text-align: center"><input type="checkbox" class="cb" aria-label="Facet" checked="{{f.facet}}" disabled="{{f.locked}}"></td>
+                  <td style="text-align: center"><input type="checkbox" class="cb" aria-label="Index" checked="{{f.index}}" disabled="{{f.locked}}"></td>
+                  <td style="text-align: center"><input type="checkbox" class="cb" aria-label="Optional" checked="{{f.optional}}" disabled="{{f.locked}}"></td>
+                  <td style="text-align: center"><input type="checkbox" class="cb" aria-label="Sort" checked="{{f.sort}}" disabled="{{f.locked}}"></td>
+                  <td style="text-align: right">
+                    <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center">
+                      <sc-if value="{{f.advanced}}" hint-placeholder-val="{{ false }}">
+                        <button type="button" class="btn btn-sm">View JSON</button>
+                      </sc-if>
+                      <sc-if value="{{f.hasTag}}" hint-placeholder-val="{{ false }}">
+                        <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font: 600 10px 'IBM Plex Mono', ui-monospace, monospace; background: {{f.tagBg}}; color: {{f.tagFg}}">{{f.tag}}</span>
+                      </sc-if>
+                      <button type="button" class="btn btn-sm" style="border-color: transparent; background: transparent; color: {{f.actionFg}}">{{f.action}}</button>
+                    </div>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <span style="font-size: 12px; color: #8F8D86; line-height: 1.5">Nested objects, embeddings and other advanced types are shown read-only here. Use Raw JSON to add or change them.</span>
+      </section>
+
+      <aside aria-label="Pending changes" style="flex: 1 1 260px; min-width: 0; max-width: 340px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #2C2E33; border-radius: 8px; background: #17181B">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600">Pending changes</h2>
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px">
+          <li style="display: flex; gap: 8px"><span style="color: #8FE0B0" aria-label="Add">+</span><span>brand_tier <span style="color: #9A9890">string · facet</span></span></li>
+          <li style="display: flex; gap: 8px"><span style="color: #8FE0B0" aria-label="Add">+</span><span>released_at <span style="color: #9A9890">int64 · sort</span></span></li>
+          <li style="display: flex; gap: 8px"><span style="color: #F59A85" aria-label="Drop">−</span><span>legacy_sku</span></li>
+        </ul>
+        <p style="margin: 0; color: #B9B7AF; line-height: 1.5">Sent as one <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">PATCH /collections/products</span>. Dropping a field removes it from the index for all 48,210 documents.</p>
+        <button type="button" class="btn" style="justify-content: center">Preview request</button>
+        <button type="button" class="btn btn-primary" style="justify-content: center">Apply 3 changes</button>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const f = (name, type, facet, index, optional, sort, kind) => {
+      const isNew = kind === 'new';
+      const isDrop = kind === 'drop';
+      const advanced = kind === 'adv';
+      return {
+        name, type, facet, index, optional, sort, advanced,
+        locked: !isNew,
+        editable: isNew,
+        hasTag: isNew || isDrop,
+        tag: isNew ? 'NEW' : 'DROP',
+        tagBg: isNew ? '#1C3326' : '#3A1E19',
+        tagFg: isNew ? '#8FE0B0' : '#F59A85',
+        rowBg: isNew ? '#18201B' : (isDrop ? '#1F1716' : 'transparent'),
+        strike: isDrop ? 'line-through' : 'none',
+        action: isNew ? 'Remove' : (isDrop ? 'Undo' : 'Drop'),
+        actionFg: isDrop ? '#E7E5E0' : '#F59A85'
+      };
+    };
+    return {
+      fields: [
+        f('name', 'string', false, true, false, false),
+        f('brand', 'string', true, true, false, false),
+        f('price', 'float', true, true, false, true),
+        f('in_stock', 'bool', true, true, false, false),
+        f('categories', 'string[]', true, true, false, false),
+        f('popularity', 'int32', false, true, false, true),
+        f('location', 'geopoint', false, true, true, false),
+        f('specs', 'object', false, true, true, false, 'adv'),
+        f('embedding', 'float[] · embed', false, true, true, false, 'adv'),
+        f('legacy_sku', 'string', false, true, true, false, 'drop'),
+        f('brand_tier', 'string', true, true, true, false, 'new'),
+        f('released_at', 'int64', false, true, true, true, 'new')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

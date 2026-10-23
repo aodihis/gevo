@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — API keys</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;border:1px solid transparent;background:transparent;cursor:pointer}
+.icon-btn:hover{background:#2A1A17;border-color:#3A1E19}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.label{font-size:12px;font-weight:500;color:#B9B7AF}
+.hint{font-size:12px;color:#8F8D86;line-height:1.45}
+.input{height:32px;box-sizing:border-box;width:100%;padding:0 10px;border-radius:6px;border:1px solid #34363C;background:#121315;color:#E7E5E0;font:13px 'IBM Plex Sans',system-ui,sans-serif}
+.input.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px}
+.input:focus{outline:2px solid #E8A33D;outline-offset:-1px}
+.chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:4px;font:500 11px 'IBM Plex Mono',ui-monospace,monospace;background:#26282D;color:#CFCDC6;white-space:nowrap}
+.pick{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;border:1px solid #34363C;background:transparent;color:#B9B7AF;font:500 12px 'IBM Plex Mono',ui-monospace,monospace;cursor:pointer}
+.pick-on{background:#2E2617;border-color:#E8A33D;color:#F7C978}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 12px;border-bottom:1px solid #2C2E33;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid #232529;vertical-align:top}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="keys" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #2C2E33">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600">API keys</h1>
+      <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9A9890; flex: 1">5</span>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 24px 24px; align-items: flex-start">
+      <section aria-label="Existing keys" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 6px; border: 1px solid #2C2E33; background: #17181B; color: #B9B7AF; line-height: 1.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" style="flex: none; margin-top: 1px" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="#9A9890" stroke-width="1.3"></circle><path d="M8 7v4.5M8 4.6v.1" stroke="#9A9890" stroke-width="1.5"></path></svg>
+          <span>Typesense can't change a key's permissions after it's created, and only shows each key's prefix. To change access, create a new key and then delete the old one.</span>
+        </div>
+        <div style="border: 1px solid #2C2E33; border-radius: 8px; background: #17181B; overflow-x: auto">
+          <table style="border-collapse: collapse; width: 100%; min-width: 700px">
+            <thead><tr><th>Key</th><th>Description</th><th>Actions</th><th>Collections</th><th>Expires</th><th><span style="position: absolute; left: -9999px">Delete</span></th></tr></thead>
+            <tbody>
+              <sc-for list="{{keys}}" as="k" hint-placeholder-count="5">
+                <tr>
+                  <td style="white-space: nowrap"><div style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px">{{k.prefix}}••••</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8F8D86">id {{k.id}}</span></div></td>
+                  <td>{{k.desc}}</td>
+                  <td><div style="display: flex; flex-wrap: wrap; gap: 4px"><sc-for list="{{k.actions}}" as="a" hint-placeholder-count="1"><span class="chip">{{a}}</span></sc-for></div></td>
+                  <td><div style="display: flex; flex-wrap: wrap; gap: 4px"><sc-for list="{{k.cols}}" as="c" hint-placeholder-count="1"><span class="chip">{{c}}</span></sc-for></div></td>
+                  <td style="white-space: nowrap; color: {{k.expFg}}">{{k.exp}}</td>
+                  <td style="text-align: right"><button type="button" class="icon-btn" aria-label="Delete key {{k.id}}" title="Delete key"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4" fill="none" stroke="#F59A85" stroke-width="1.3"></path></svg></button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <form aria-labelledby="newkey" style="flex: 1 1 300px; min-width: 0; max-width: 380px; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid #2C2E33; border-radius: 8px; background: #17181B">
+        <h2 id="newkey" style="margin: 0; font-size: 13px; font-weight: 600">New key</h2>
+        <div class="field">
+          <label class="label" for="desc">Description</label>
+          <input id="desc" class="input" value="Storefront search (web)">
+        </div>
+        <div class="field">
+          <span class="label" id="actlbl">Actions</span>
+          <div role="group" aria-labelledby="actlbl" style="display: flex; flex-wrap: wrap; gap: 6px">
+            <button type="button" class="pick pick-on" aria-pressed="true">documents:search</button>
+            <button type="button" class="pick">documents:get</button>
+            <button type="button" class="pick">documents:*</button>
+            <button type="button" class="pick">collections:*</button>
+            <button type="button" class="pick">keys:*</button>
+            <button type="button" class="pick">*</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="collbl">Collections</span>
+          <div role="group" aria-labelledby="collbl" style="display: flex; flex-wrap: wrap; gap: 6px">
+            <button type="button" class="pick">all (*)</button>
+            <button type="button" class="pick pick-on" aria-pressed="true">products</button>
+            <button type="button" class="pick pick-on" aria-pressed="true">articles</button>
+            <button type="button" class="pick">+ choose…</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="exp">Expires (optional)</label>
+          <input id="exp" class="input mono" value="2027-04-30">
+        </div>
+        <div class="field">
+          <label class="label" for="scoped">Embedded search params (optional)</label>
+          <textarea id="scoped" class="input mono" style="height: 64px; padding: 8px 10px; resize: vertical">{"filter_by": "visibility:public"}</textarea>
+          <span class="hint">Locked into every search made with this key.</span>
+        </div>
+        <a href="KeyCreated.dc.html" class="btn btn-primary" style="justify-content: center">Create key</a>
+      </form>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      keys: [
+        { id: 1, prefix: 'Hu7d', desc: 'Bootstrap admin', actions: ['*'], cols: ['*'], exp: 'Never', expFg: '#B9B7AF' },
+        { id: 4, prefix: 'sR2x', desc: 'Storefront search (web)', actions: ['documents:search'], cols: ['products', 'articles'], exp: '30 Apr 2027', expFg: '#B9B7AF' },
+        { id: 7, prefix: 'pQ9a', desc: 'Catalog sync job', actions: ['documents:*'], cols: ['products'], exp: 'Never', expFg: '#B9B7AF' },
+        { id: 9, prefix: 'mE4k', desc: 'Support dashboard', actions: ['documents:search', 'documents:get'], cols: ['support_tickets'], exp: '29 Oct 2026', expFg: '#F7C978' },
+        { id: 12, prefix: 'Zt1v', desc: 'Old mobile app', actions: ['documents:search'], cols: ['products'], exp: 'Expired 01 Sep 2026', expFg: '#F59A85' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
