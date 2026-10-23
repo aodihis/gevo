@@ -1,0 +1,15 @@
+[package]
+name = "gevo"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "gevo"
+path = "src/main.rs"
+
+[dependencies]
+eframe = "0.37"
+egui = "0.37"
