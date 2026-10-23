@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Documents</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-sm{height:28px;padding:0 10px;font-size:12px}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+.btn-danger-ghost{color:#F59A85}
+.btn-danger-ghost:hover{background:#2A1A17;color:#F8B3A3}
+.tab{display:inline-flex;align-items:center;height:40px;padding:0 2px;color:#9A9890;text-decoration:none;border-bottom:2px solid transparent;font-weight:500}
+.tab:hover{color:#E7E5E0}
+.tab-on{color:#FFFFFF;border-bottom-color:#E8A33D}
+.qf{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ql{font:500 11px 'IBM Plex Mono',ui-monospace,monospace;color:#9A9890}
+.input{height:32px;box-sizing:border-box;width:100%;padding:0 10px;border-radius:6px;border:1px solid #34363C;background:#121315;color:#E7E5E0;font:12px 'IBM Plex Mono',ui-monospace,monospace}
+.input:focus{outline:2px solid #E8A33D;outline-offset:-1px}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 12px;border-bottom:1px solid #2C2E33;white-space:nowrap;font-family:'IBM Plex Mono',ui-monospace,monospace}
+td{padding:0 12px;height:34px;border-bottom:1px solid #232529;white-space:nowrap;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.rowbtn{all:unset;cursor:pointer;color:#F0B45A}
+.rowbtn:hover{text-decoration:underline}
+.rowbtn:focus-visible{outline:2px solid #E8A33D;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="documents" active-collection="products" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 0 24px; border-bottom: 1px solid #2C2E33">
+      <div style="display: flex; align-items: center; gap: 8px; min-height: 52px; flex: 1">
+        <a href="Collections.dc.html" style="color: #9A9890; text-decoration: none">Collections</a>
+        <span style="color: #5E5C57" aria-hidden="true">/</span>
+        <h1 style="margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; font-weight: 600">products</h1>
+      </div>
+      <nav aria-label="Collection" style="display: flex; gap: 20px; align-self: flex-end">
+        <a href="Documents.dc.html" class="tab tab-on" aria-current="page">Documents</a>
+        <a href="SchemaEditor.dc.html" class="tab">Schema</a>
+      </nav>
+      <div style="display: flex; gap: 8px">
+        <a href="Import.dc.html" class="btn btn-sm">
+          <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 9V1.5M4 6.5l3 3 3-3M2 12.5h10" fill="none" stroke="#E7E5E0" stroke-width="1.4"></path></svg>
+          Import JSONL
+        </a>
+        <button type="button" class="btn btn-sm">
+          <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 9.5V2M4 4.5l3-3 3 3M2 12.5h10" fill="none" stroke="#E7E5E0" stroke-width="1.4"></path></svg>
+          Export
+        </button>
+        <button type="button" class="btn btn-sm btn-primary">New document</button>
+      </div>
+    </header>
+
+    <form aria-label="Search" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 24px; border-bottom: 1px solid #2C2E33; background: #16171A">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px; align-items: end">
+        <div class="qf"><label class="ql" for="q">q</label><input id="q" class="input" value="wireless headphones"></div>
+        <div class="qf"><label class="ql" for="qb">query_by</label><input id="qb" class="input" value="name,brand"></div>
+        <div class="qf" style="grid-column: span 2"><label class="ql" for="fb">filter_by</label><input id="fb" class="input" value="price:&lt;200 &amp;&amp; in_stock:true"></div>
+        <div class="qf"><label class="ql" for="sb">sort_by</label><input id="sb" class="input" value="price:asc"></div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+        <button type="button" class="btn btn-sm" style="border-style: dashed">+ Param</button>
+        <button type="button" class="btn btn-sm" style="background: transparent; border-color: transparent; color: #B9B7AF">Edit as raw query</button>
+        <span style="flex: 1"></span>
+        <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9A9890">312 found · 4 ms</span>
+        <button type="submit" class="btn btn-sm btn-primary">Run ⏎</button>
+      </div>
+    </form>
+
+    <div style="display: flex; flex-wrap: wrap; flex: 1; min-height: 0">
+      <section aria-label="Results" style="flex: 999 1 460px; min-width: 0; display: flex; flex-direction: column">
+        <div style="overflow-x: auto">
+          <table style="border-collapse: collapse; width: 100%; min-width: 620px">
+            <thead><tr><th>id</th><th>name</th><th>brand</th><th style="text-align: right">price</th><th>in_stock</th><th>categories</th></tr></thead>
+            <tbody>
+              <sc-for list="{{docs}}" as="d" hint-placeholder-count="10">
+                <tr style="background: {{d.bg}}">
+                  <td><button type="button" class="rowbtn" onClick="{{d.pick}}" aria-label="Open document {{d.id}}">{{d.id}}</button></td>
+                  <td style="font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">{{d.name}}</td>
+                  <td>{{d.brand}}</td>
+                  <td style="text-align: right">{{d.priceText}}</td>
+                  <td style="color: {{d.stockFg}}">{{d.stockText}}</td>
+                  <td style="color: #B9B7AF">{{d.catText}}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 24px; border-top: 1px solid #2C2E33; margin-top: auto">
+          <label for="pp" style="color: #9A9890; font-size: 12px">Per page</label>
+          <select id="pp" class="input" style="width: 70px; height: 28px"><option>10</option><option>25</option><option>50</option><option>100</option></select>
+          <span style="flex: 1"></span>
+          <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9A9890">1–10 of 312</span>
+          <button type="button" class="btn btn-sm" aria-label="Previous page" disabled style="opacity: 0.5">‹</button>
+          <button type="button" class="btn btn-sm" aria-label="Next page">›</button>
+        </div>
+      </section>
+
+      <aside aria-label="Document detail" style="flex: 1 1 320px; min-width: 0; max-width: 100%; display: flex; flex-direction: column; border-left: 1px solid #2C2E33; background: #16171A">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #2C2E33">
+          <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 600; flex: 1">{{sel.id}}</span>
+          <button type="button" class="btn btn-sm" aria-label="Copy JSON">Copy</button>
+          <button type="button" class="btn btn-sm">Edit</button>
+          <button type="button" class="btn btn-sm btn-danger-ghost">Delete</button>
+        </div>
+        <pre style="margin: 0; padding: 14px 16px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; line-height: 1.6; color: #CFCDC6; white-space: pre-wrap; word-break: break-word">{{selJson}}</pre>
+      </aside>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":860}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: 2 };
+  }
+  renderVals() {
+    const raw = [
+      { id: 'sku-1042', name: 'Arc Lite wireless headphones', brand: 'Northwind', price: 59.0, in_stock: true, categories: ['audio', 'headphones'], popularity: 812 },
+      { id: 'sku-2210', name: 'Fold 2 wireless headphones', brand: 'Larkspur', price: 74.5, in_stock: true, categories: ['audio', 'headphones', 'travel'], popularity: 1290 },
+      { id: 'sku-3381', name: 'Studio Air wireless headphones', brand: 'Halden', price: 99.0, in_stock: true, categories: ['audio', 'headphones'], popularity: 2044 },
+      { id: 'sku-0937', name: 'Commute ANC wireless headphones', brand: 'Northwind', price: 119.0, in_stock: true, categories: ['audio', 'noise-cancelling'], popularity: 1733 },
+      { id: 'sku-4471', name: 'Pulse sport wireless earbuds', brand: 'Oroko', price: 129.0, in_stock: true, categories: ['audio', 'sport'], popularity: 640 },
+      { id: 'sku-5120', name: 'Field wireless over-ear', brand: 'Larkspur', price: 139.0, in_stock: true, categories: ['audio', 'headphones'], popularity: 451 },
+      { id: 'sku-6008', name: 'Halo kids wireless headphones', brand: 'Halden', price: 149.0, in_stock: true, categories: ['audio', 'kids'], popularity: 318 },
+      { id: 'sku-7215', name: 'Drift wireless headphones', brand: 'Oroko', price: 159.0, in_stock: true, categories: ['audio', 'headphones'], popularity: 977 },
+      { id: 'sku-8840', name: 'Mono pro wireless monitor', brand: 'Kessel', price: 179.0, in_stock: true, categories: ['audio', 'studio'], popularity: 205 },
+      { id: 'sku-9902', name: 'Atlas wireless headphones', brand: 'Northwind', price: 199.0, in_stock: true, categories: ['audio', 'headphones'], popularity: 1502 }
+    ];
+    const selIdx = this.state.sel;
+    const docs = raw.map((d, i) => ({
+      ...d,
+      priceText: d.price.toFixed(2),
+      stockText: String(d.in_stock),
+      stockFg: d.in_stock ? '#8FE0B0' : '#F59A85',
+      catText: '[' + d.categories.join(', ') + ']',
+      bg: i === selIdx ? '#26282D' : 'transparent',
+      pick: () => this.setState({ sel: i })
+    }));
+    const sel = raw[selIdx];
+    return { docs, sel, selJson: JSON.stringify(sel, null, 2) };
+  }
+}
+</script>
+</body>
+</html>

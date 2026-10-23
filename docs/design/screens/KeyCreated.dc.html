@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Key created</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+.btn-primary[aria-disabled="true"]{background:#3A3122;border-color:#3A3122;color:#9E917A;pointer-events:none}
+</style>
+</helmet>
+<div style="position: relative; min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="keys" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #2C2E33">
+      <span style="font-size: 15px; font-weight: 600">API keys</span>
+    </header>
+  </main>
+
+  <div style="position: absolute; inset: 0; background: rgba(8, 8, 10, 0.72); display: flex; align-items: center; justify-content: center; padding: 24px">
+    <div role="dialog" aria-modal="true" aria-labelledby="dlg-title" style="width: 100%; max-width: 520px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 22px; border-radius: 10px; border: 1px solid #3A3C42; background: #1B1C20; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5)">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <h2 id="dlg-title" style="margin: 0; font-size: 16px; font-weight: 600">Key created — copy it now</h2>
+        <p style="margin: 0; color: #B9B7AF; line-height: 1.55">Storefront search (web) · <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">documents:search</span> on products, articles</p>
+      </div>
+
+      <div style="display: flex; align-items: stretch; border: 1px solid #E8A33D; border-radius: 8px; background: #121315; overflow: hidden">
+        <code style="flex: 1; min-width: 0; padding: 12px 14px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; letter-spacing: 0.02em; color: #F7C978; word-break: break-all">sR2xq8LmV0cT3nYwK7pJd4FhBz9aUeG1</code>
+        <button type="button" onClick="{{copy}}" style="display: inline-flex; align-items: center; gap: 6px; padding: 0 14px; border: none; border-left: 1px solid #3A3122; background: #2E2617; color: #F7C978; font: 500 13px 'IBM Plex Sans', system-ui, sans-serif; cursor: pointer">
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="#F7C978" stroke-width="1.3"></rect><path d="M11 5V3.5A1.5 1.5 0 009.5 2h-6A1.5 1.5 0 002 3.5v6A1.5 1.5 0 003.5 11H5" fill="none" stroke="#F7C978" stroke-width="1.3"></path></svg>
+          {{copyLabel}}
+        </button>
+      </div>
+
+      <div style="display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 6px; background: #241E14; color: #E9D9BC; line-height: 1.5">
+        <svg width="16" height="16" viewBox="0 0 16 16" style="flex: none; margin-top: 2px" aria-hidden="true"><path d="M8 1.8l6.6 11.7H1.4z" fill="none" stroke="#F7C978" stroke-width="1.3" stroke-linejoin="round"></path><path d="M8 6.2v3.4M8 11.3v.1" stroke="#F7C978" stroke-width="1.5"></path></svg>
+        <span>You won't see this key again. Typesense only keeps its prefix, so if you lose it, create a new key and delete this one.</span>
+      </div>
+
+      <label for="ack" style="display: flex; align-items: center; gap: 10px; cursor: pointer">
+        <input id="ack" type="checkbox" checked="{{ack}}" onChange="{{toggleAck}}" style="width: 16px; height: 16px; accent-color: #E8A33D; margin: 0">
+        I've stored this key somewhere safe
+      </label>
+
+      <div style="display: flex; justify-content: flex-end">
+        <a href="ApiKeys.dc.html" class="btn btn-primary" aria-disabled="{{doneDisabled}}">Done</a>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { copied: false, ack: false };
+  }
+  renderVals() {
+    return {
+      ack: this.state.ack,
+      copyLabel: this.state.copied ? 'Copied' : 'Copy',
+      doneDisabled: this.state.ack ? 'false' : 'true',
+      copy: () => this.setState({ copied: true }),
+      toggleAck: () => this.setState({ ack: !this.state.ack })
+    };
+  }
+}
+</script>
+</body>
+</html>

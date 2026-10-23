@@ -1,0 +1,41 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-23T12:00:00Z"},
+  "title": "Gevo v1 — Typesense admin",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1280, "h": 800, "title": "Connections (offline launch)", "expand": "fill", "is_interactive": true},
+    "ConnectionEdit.dc.html": {"x": 1360, "y": 0, "w": 1280, "h": 860, "title": "Edit connection + SSH tunnel test", "expand": "fill", "is_interactive": true},
+    "Health.dc.html": {"x": 2720, "y": 0, "w": 1280, "h": 800, "title": "Health snapshot", "expand": "fill", "is_interactive": true},
+    "Settings.dc.html": {"x": 4080, "y": 0, "w": 1280, "h": 800, "title": "Settings · color theme", "expand": "fill", "is_interactive": true},
+    "Sidebar.dc.html": {"x": -312, "y": 0, "w": 232, "h": 800, "title": "Component · Sidebar"},
+    "Collections.dc.html": {"x": 0, "y": 1300, "w": 1280, "h": 800, "title": "Collections", "expand": "fill", "is_interactive": true},
+    "SchemaEditor.dc.html": {"x": 1360, "y": 1300, "w": 1280, "h": 860, "title": "Schema editor (alter)", "expand": "fill", "is_interactive": true},
+    "ConfirmDelete.dc.html": {"x": 2720, "y": 1300, "w": 1280, "h": 800, "title": "Destructive confirm (modal)", "expand": "fill", "is_interactive": true},
+    "Documents.dc.html": {"x": 4080, "y": 1300, "w": 1280, "h": 860, "title": "Documents browser", "expand": "fill", "is_interactive": true},
+    "Import.dc.html": {"x": 5440, "y": 1300, "w": 1280, "h": 860, "title": "JSONL import results", "expand": "fill", "is_interactive": true},
+    "ApiKeys.dc.html": {"x": 0, "y": 2600, "w": 1280, "h": 860, "title": "API keys", "expand": "fill", "is_interactive": true},
+    "KeyCreated.dc.html": {"x": 1360, "y": 2600, "w": 1280, "h": 800, "title": "Key created (one-time reveal)", "expand": "fill", "is_interactive": true}
+  },
+  "order": [
+    "Main.dc.html",
+    "Sidebar.dc.html",
+    "ConnectionEdit.dc.html",
+    "Health.dc.html",
+    "Settings.dc.html",
+    "Collections.dc.html",
+    "SchemaEditor.dc.html",
+    "ConfirmDelete.dc.html",
+    "Documents.dc.html",
+    "Import.dc.html",
+    "ApiKeys.dc.html",
+    "KeyCreated.dc.html"
+  ],
+  "notes": {
+    "rowA": {"x": 0, "y": -280, "text": "Connections, health & settings", "kind": "title1", "maxW": 5360},
+    "rowB": {"x": 0, "y": 1020, "text": "Collections & documents", "kind": "title1", "maxW": 6720},
+    "rowC": {"x": 0, "y": 2320, "text": "API keys", "kind": "title1", "maxW": 2640}
+  },
+  "designSystems": []
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Delete collection</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-danger{background:#B8402C;border-color:#B8402C;color:#FFFFFF}
+.btn-danger:hover{background:#C94B35}
+.btn-danger:disabled{background:#3A2220;border-color:#3A2220;color:#A08680;cursor:not-allowed}
+.input{height:36px;box-sizing:border-box;width:100%;padding:0 10px;border-radius:6px;border:1px solid #34363C;background:#121315;color:#E7E5E0;font:13px 'IBM Plex Mono',ui-monospace,monospace}
+.input:focus{outline:2px solid #E8A33D;outline-offset:-1px}
+</style>
+</helmet>
+<div style="position: relative; min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="collections" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #2C2E33">
+      <span style="font-size: 15px; font-weight: 600">Collections</span>
+    </header>
+  </main>
+
+  <div style="position: absolute; inset: 0; background: rgba(8, 8, 10, 0.72); display: flex; align-items: center; justify-content: center; padding: 24px">
+    <div role="dialog" aria-modal="true" aria-labelledby="dlg-title" style="width: 100%; max-width: 460px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 22px; border-radius: 10px; border: 1px solid #3A3C42; background: #1B1C20; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5)">
+      <div style="display: flex; gap: 12px; align-items: flex-start">
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; background: #3A1E19; flex: none">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4" fill="none" stroke="#F59A85" stroke-width="1.4"></path></svg>
+        </span>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <h2 id="dlg-title" style="margin: 0; font-size: 16px; font-weight: 600">Delete collection <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace">products</span>?</h2>
+          <p style="margin: 0; color: #B9B7AF; line-height: 1.55">This permanently deletes the collection and all <strong style="color: #E7E5E0; font-weight: 600">48,210 documents</strong> on <strong style="color: #E7E5E0; font-weight: 600">prod-search</strong>. It can't be undone.</p>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <label for="confirm" style="font-size: 12px; font-weight: 500; color: #B9B7AF">Type <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7E5E0">products</span> to confirm</label>
+        <input id="confirm" class="input" autocomplete="off" value="{{typed}}" onChange="{{onType}}">
+      </div>
+      <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px">
+        <a href="Collections.dc.html" class="btn">Cancel</a>
+        <button type="button" class="btn btn-danger" disabled="{{locked}}">Delete collection</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { typed: '' };
+  }
+  renderVals() {
+    const typed = this.state.typed;
+    return {
+      typed,
+      locked: typed !== 'products',
+      onType: (e) => this.setState({ typed: e.target.value })
+    };
+  }
+}
+</script>
+</body>
+</html>

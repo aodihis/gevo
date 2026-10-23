@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Connections</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121315}
+a{color:#F0B45A}a:hover{color:#F7CE8C}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:6px;border:1px solid #34363C;background:#202226;color:#E7E5E0;font:500 13px 'IBM Plex Sans',system-ui,sans-serif;cursor:pointer;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#2A2C31;color:#FFFFFF}
+.btn-primary{background:#E8A33D;border-color:#E8A33D;color:#1A1408}
+.btn-primary:hover{background:#F0B45A;color:#1A1408}
+th{text-align:left;font-weight:500;font-size:12px;color:#9A9890;padding:8px 14px;border-bottom:1px solid #2C2E33;white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid #232529;vertical-align:top}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #121315; color: #E7E5E0; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: #16171A; border-right: 1px solid #2C2E33">
+    <dc-import name="Sidebar" active="connections" connected="{{ false }}" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 24px; min-height: 52px; border-bottom: 1px solid #2C2E33">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600; flex: 1">Connections</h1>
+      <button type="button" class="btn">Test all</button>
+      <a href="ConnectionEdit.dc.html" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M2 7h10" stroke="#1A1408" stroke-width="1.6"></path></svg>
+        New connection
+      </a>
+    </header>
+
+    <div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; max-width: 1080px; width: 100%; box-sizing: border-box">
+      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 14px; border: 1px solid #2C2E33; border-radius: 8px; background: #17181B">
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="#9A9890" stroke-width="1.4"></rect><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="#9A9890" stroke-width="1.4"></path></svg>
+        <span style="flex: 1; min-width: 260px; color: #B9B7AF; line-height: 1.5">Profiles live on this machine. Admin keys and SSH secrets are kept in your OS keychain, never in the config file.</span>
+      </div>
+
+      <div style="border: 1px solid #2C2E33; border-radius: 8px; background: #17181B; overflow-x: auto">
+        <table style="border-collapse: collapse; width: 100%; min-width: 760px">
+          <thead>
+            <tr><th>Profile</th><th>Endpoint</th><th>Route</th><th>Last test</th><th style="text-align: right">Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div style="font-weight: 600">local</div></td>
+              <td style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #CFCDC6">http://localhost:8108</td>
+              <td style="color: #B9B7AF">Direct</td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; background: #1C3326; color: #8FE0B0">OK</span>
+                  <span style="color: #B9B7AF">Reachable · admin key valid · 14 ms</span>
+                </div>
+              </td>
+              <td><div style="display: flex; gap: 6px; justify-content: flex-end"><button type="button" class="btn">Test</button><a href="ConnectionEdit.dc.html" class="btn">Edit</a><a href="Collections.dc.html" class="btn btn-primary">Connect</a></div></td>
+            </tr>
+            <tr style="background: #1B1A17">
+              <td style="border-bottom: none"><div style="font-weight: 600">prod-search</div></td>
+              <td style="border-bottom: none; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #CFCDC6">https://10.0.4.12:8108</td>
+              <td style="border-bottom: none; color: #B9B7AF">SSH · bastion-1</td>
+              <td style="border-bottom: none">
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; background: #3A2C14; color: #F7C978">AUTH</span>
+                  <span style="color: #E7E5E0">Admin key rejected</span>
+                </div>
+              </td>
+              <td style="border-bottom: none"><div style="display: flex; gap: 6px; justify-content: flex-end"><button type="button" class="btn">Test</button><a href="ConnectionEdit.dc.html" class="btn">Edit</a><button type="button" class="btn btn-primary">Connect</button></div></td>
+            </tr>
+            <tr style="background: #1B1A17">
+              <td colspan="5" style="padding: 0 14px 14px">
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 6px; background: #121315; border: 1px solid #3A2C14">
+                  <span style="color: #B9B7AF">Tunnel and server are reachable. Typesense returned <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7E5E0">401</span> for the admin key:</span>
+                  <code style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #F7C978; white-space: pre-wrap">{"message": "Forbidden - a valid `x-typesense-api-key` header must be sent."}</code>
+                  <span><a href="ConnectionEdit.dc.html">Replace admin key…</a></span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><div style="font-weight: 600">staging</div></td>
+              <td style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #CFCDC6">http://10.0.9.30:8108</td>
+              <td style="color: #B9B7AF">SSH · jump-1</td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; background: #2D2340; color: #CDB2F5">TUNNEL</span>
+                  <span style="color: #B9B7AF">SSH auth failed for deploy@jump-1</span>
+                </div>
+              </td>
+              <td><div style="display: flex; gap: 6px; justify-content: flex-end"><button type="button" class="btn">Test</button><a href="ConnectionEdit.dc.html" class="btn">Edit</a><button type="button" class="btn btn-primary">Connect</button></div></td>
+            </tr>
+            <tr>
+              <td style="border-bottom: none"><div style="font-weight: 600">analytics-ro</div></td>
+              <td style="border-bottom: none; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #CFCDC6">https://ts.analytics.lan:443</td>
+              <td style="border-bottom: none; color: #B9B7AF">Direct</td>
+              <td style="border-bottom: none">
+                <div style="display: flex; align-items: center; gap: 8px">
+                  <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; background: #1B2A40; color: #A9C8F7">NETWORK</span>
+                  <span style="color: #B9B7AF">Connection refused</span>
+                </div>
+              </td>
+              <td style="border-bottom: none"><div style="display: flex; gap: 6px; justify-content: flex-end"><button type="button" class="btn">Test</button><a href="ConnectionEdit.dc.html" class="btn">Edit</a><button type="button" class="btn btn-primary">Connect</button></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 8px 20px; color: #9A9890; font-size: 12px">
+        <span style="display: inline-flex; align-items: center; gap: 6px"><span style="font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; color: #A9C8F7">NETWORK</span> host or port unreachable</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px"><span style="font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; color: #CDB2F5">TUNNEL</span> SSH connect, auth or forward failed</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px"><span style="font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; color: #F7C978">AUTH</span> server reached, key rejected</span>
+        <span style="display: inline-flex; align-items: center; gap: 6px"><span style="font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; color: #F59A85">API</span> Typesense error, message shown as-is</span>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

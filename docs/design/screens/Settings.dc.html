@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gevo — Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit}
+button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: {{t.page}}; color: {{t.text}}; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px">
+  <div style="flex: 1 1 232px; background: {{t.side}}; border-right: 1px solid {{t.border}}">
+    <dc-import name="Sidebar" active="settings" theme="{{resolved}}" accent="{{accentKey}}" hint-size="100%,800px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="display: flex; align-items: center; gap: 12px; padding: 0 24px; min-height: 52px; border-bottom: 1px solid {{t.border}}">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600; flex: 1">Settings</h1>
+    </header>
+
+    <div style="padding: 24px; display: flex; flex-direction: column; gap: 28px; max-width: 880px; width: 100%; box-sizing: border-box">
+      <section aria-labelledby="appearance" style="display: flex; flex-direction: column; gap: 20px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h2 id="appearance" style="margin: 0; font-size: 14px; font-weight: 600">Appearance</h2>
+          <span style="color: {{t.muted}}">Changes apply right away and are saved to this machine's Gevo config.</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span id="themelbl" style="font-size: 12px; font-weight: 500; color: {{t.muted}}">Theme</span>
+          <div role="radiogroup" aria-labelledby="themelbl" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px">
+            <sc-for list="{{themes}}" as="o" hint-placeholder-count="3">
+              <button type="button" role="radio" aria-checked="{{o.checked}}" onClick="{{o.pick}}" style="display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 10px; border: 2px solid {{o.ring}}; background: {{t.panel}}; color: {{t.text}}; cursor: pointer; text-align: left; font: inherit">
+                <span aria-hidden="true" style="display: flex; height: 84px; border-radius: 6px; overflow: hidden; border: 1px solid {{t.border}}">
+                  <span style="flex: 1; display: flex; background: {{o.a.page}}">
+                    <span style="width: 34%; background: {{o.a.side}}; display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; box-sizing: border-box">
+                      <span style="height: 5px; width: 70%; border-radius: 2px; background: {{accentNow}}"></span>
+                      <span style="height: 5px; width: 85%; border-radius: 2px; background: {{o.a.line}}"></span>
+                      <span style="height: 5px; width: 60%; border-radius: 2px; background: {{o.a.line}}"></span>
+                    </span>
+                    <span style="flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 8px; box-sizing: border-box">
+                      <span style="height: 5px; width: 50%; border-radius: 2px; background: {{o.a.strong}}"></span>
+                      <span style="height: 5px; width: 90%; border-radius: 2px; background: {{o.a.line}}"></span>
+                      <span style="height: 5px; width: 80%; border-radius: 2px; background: {{o.a.line}}"></span>
+                    </span>
+                  </span>
+                  <sc-if value="{{o.split}}" hint-placeholder-val="{{ false }}">
+                    <span style="flex: 1; display: flex; background: {{o.b.page}}">
+                      <span style="width: 34%; background: {{o.b.side}}; display: flex; flex-direction: column; gap: 5px; padding: 8px 6px; box-sizing: border-box">
+                        <span style="height: 5px; width: 70%; border-radius: 2px; background: {{accentNow}}"></span>
+                        <span style="height: 5px; width: 85%; border-radius: 2px; background: {{o.b.line}}"></span>
+                      </span>
+                      <span style="flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 8px; box-sizing: border-box">
+                        <span style="height: 5px; width: 50%; border-radius: 2px; background: {{o.b.strong}}"></span>
+                        <span style="height: 5px; width: 90%; border-radius: 2px; background: {{o.b.line}}"></span>
+                      </span>
+                    </span>
+                  </sc-if>
+                </span>
+                <span style="display: flex; align-items: center; gap: 8px">
+                  <span style="width: 14px; height: 14px; box-sizing: border-box; border-radius: 50%; border: {{o.dot}}"></span>
+                  <span style="display: flex; flex-direction: column; gap: 1px">
+                    <span style="font-weight: 600">{{o.label}}</span>
+                    <span style="font-size: 12px; color: {{t.muted}}">{{o.sub}}</span>
+                  </span>
+                </span>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span id="accentlbl" style="font-size: 12px; font-weight: 500; color: {{t.muted}}">Accent color</span>
+          <div role="radiogroup" aria-labelledby="accentlbl" style="display: flex; flex-wrap: wrap; gap: 8px">
+            <sc-for list="{{accents}}" as="a" hint-placeholder-count="4">
+              <button type="button" role="radio" aria-checked="{{a.checked}}" onClick="{{a.pick}}" style="display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 10px; border-radius: 18px; border: 1px solid {{a.ring}}; background: {{a.bg}}; color: {{t.text}}; cursor: pointer; font: 500 13px 'IBM Plex Sans', system-ui, sans-serif">
+                <span style="width: 16px; height: 16px; border-radius: 50%; background: {{a.swatch}}"></span>
+                {{a.label}}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="preview" style="display: flex; flex-direction: column; gap: 10px">
+        <h2 id="preview" style="margin: 0; font-size: 12px; font-weight: 500; color: {{t.muted}}">Preview</h2>
+        <div style="display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 8px; border: 1px solid {{t.border}}; background: {{t.panel}}">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+            <span style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 6px; background: {{accentNow}}; color: {{t.onAccent}}; font-weight: 500">New collection</span>
+            <span style="display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid {{t.btnBorder}}; background: {{t.btn}}; font-weight: 500">Refresh</span>
+            <span style="color: {{accentNow}}; font-family: 'IBM Plex Mono', ui-monospace, monospace; text-decoration: underline">products</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <sc-for list="{{chips}}" as="c" hint-placeholder-count="4">
+              <span style="display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; font: 600 11px 'IBM Plex Mono', ui-monospace, monospace; background: {{c.bg}}; color: {{c.fg}}">{{c.label}}</span>
+            </sc-for>
+          </div>
+          <div style="display: flex; gap: 16px; padding-top: 12px; border-top: 1px solid {{t.border}}; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px">
+            <span style="color: {{accentNow}}">sku-3381</span>
+            <span>Studio Air wireless headphones</span>
+            <span style="color: {{t.muted}}">Halden</span>
+            <span style="margin-left: auto">99.00</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { theme: 'system', accent: 'amber' };
+  }
+  renderVals() {
+    const systemIs = 'dark';
+    const resolved = this.state.theme === 'system' ? systemIs : this.state.theme;
+    const pal = {
+      dark: { page: '#121315', side: '#16171A', panel: '#17181B', border: '#2C2E33', text: '#E7E5E0', muted: '#9A9890', btn: '#202226', btnBorder: '#34363C', onAccent: '#1A1408', line: '#34363C', strong: '#9A9890' },
+      light: { page: '#FBFAF8', side: '#F3F2EE', panel: '#FFFFFF', border: '#DDDBD4', text: '#1D1D1B', muted: '#67655F', btn: '#FFFFFF', btnBorder: '#D3D1CA', onAccent: '#FFFFFF', line: '#DDDBD4', strong: '#67655F' }
+    };
+    const accentDefs = [
+      { key: 'amber', label: 'Amber', dark: '#E8A33D', light: '#A8650F' },
+      { key: 'blue', label: 'Blue', dark: '#6EA8FE', light: '#2F64C8' },
+      { key: 'green', label: 'Green', dark: '#5FC08A', light: '#23804D' },
+      { key: 'violet', label: 'Violet', dark: '#B394F5', light: '#6C46C9' }
+    ];
+    const t = pal[resolved];
+    const acc = accentDefs.find((a) => a.key === this.state.accent) || accentDefs[0];
+    const accentNow = acc[resolved];
+    const mini = (k) => ({ page: pal[k].page, side: pal[k].side, line: pal[k].line, strong: pal[k].strong });
+    const themes = [
+      { key: 'system', label: 'Match system', sub: 'Currently dark', a: mini('dark'), b: mini('light'), split: true },
+      { key: 'dark', label: 'Dark', sub: 'Graphite', a: mini('dark'), b: mini('dark'), split: false },
+      { key: 'light', label: 'Light', sub: 'Paper', a: mini('light'), b: mini('light'), split: false }
+    ].map((o) => {
+      const on = o.key === this.state.theme;
+      return {
+        ...o,
+        checked: on ? 'true' : 'false',
+        ring: on ? accentNow : t.border,
+        dot: on ? '4px solid ' + accentNow : '1.5px solid ' + t.muted,
+        pick: () => this.setState({ theme: o.key })
+      };
+    });
+    const accents = accentDefs.map((a) => {
+      const on = a.key === this.state.accent;
+      return {
+        label: a.label,
+        swatch: a[resolved],
+        checked: on ? 'true' : 'false',
+        ring: on ? a[resolved] : t.btnBorder,
+        bg: on ? t.btn : 'transparent',
+        pick: () => this.setState({ accent: a.key })
+      };
+    });
+    const chips = resolved === 'dark'
+      ? [
+          { label: 'OK', bg: '#1C3326', fg: '#8FE0B0' },
+          { label: 'AUTH', bg: '#3A2C14', fg: '#F7C978' },
+          { label: 'TUNNEL', bg: '#2D2340', fg: '#CDB2F5' },
+          { label: 'NETWORK', bg: '#1B2A40', fg: '#A9C8F7' }
+        ]
+      : [
+          { label: 'OK', bg: '#DDF1E4', fg: '#1B6B3F' },
+          { label: 'AUTH', bg: '#F8E7C6', fg: '#7A4B05' },
+          { label: 'TUNNEL', bg: '#ECE2FA', fg: '#5B3AA8' },
+          { label: 'NETWORK', bg: '#DDE8FA', fg: '#2552A0' }
+        ];
+    return { t, resolved, accentKey: acc.key, accentNow, themes, accents, chips };
+  }
+}
+</script>
+</body>
+</html>
