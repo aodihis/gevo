@@ -2,8 +2,9 @@
 
 Type: product decision
 
-Reference: requirements in [[0002-v1-requirements]], GUI choice in
-[[0001-gui-framework-choice]], contributor rules in `AGENTS.md`.
+Reference: [v1 requirements](0002-v1-requirements.md), [GUI framework
+ADR](../decision/0001-gui-framework-choice.md), contributor rules in
+`AGENTS.md`.
 
 ## Approach
 
@@ -22,8 +23,8 @@ platforms, with CI, logging and a frozen copy of the design handoff.
 | # | Task | Deliverable |
 |---|---|---|
 | 0.1 | Scaffold Rust project | `Cargo.toml`, `src/main.rs`, `src/lib.rs`, `.gitignore` |
-| 0.2 | Add dependencies | `eframe`, `egui`, `egui_extras`, `tokio`, `reqwest`, `serde`, `serde_json`, `tracing`, `tracing-subscriber`, `tracing-appender`, `keyring`, `russh` (or `openssh`), `thiserror`, `anyhow`, `mockall` (dev), `tempfile` (dev) |
-| 0.3 | CI | GitHub Actions: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on windows/macos/ubuntu |
+| 0.2 | Add dependencies | `eframe`, `egui_extras`, `tokio`, `reqwest`, `serde`, `serde_json`, `tracing`, `tracing-subscriber`, `tracing-appender`, `keyring`, `russh` (or `openssh`), `zeroize` (or `secrecy`), `thiserror`, `anyhow`, `mockall` (dev), `tempfile` (dev). Added as each feature PR needs them — not front-loaded. |
+| 0.3 | CI | GitHub Actions: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on windows/macos/ubuntu. Separate opt-in / nightly job runs `cargo test -- --ignored` against a Typesense container for the Phase 4+ integration tests. |
 | 0.4 | Copy design handoff into `docs/design/` | `DESIGN_HANDOFF.md` + `screens/*.dc.html` committed |
 | 0.5 | Logging bootstrap | `tracing-subscriber` + daily rotating file via `tracing-appender`, toggle flag, 7-day retention sweep at startup; secret-redacting `Debug` helper |
 | 0.6 | README | How to build, run, test on each OS |
@@ -66,7 +67,7 @@ mockable (§2). All functions covered (§6). Avoid clones (§5).
 |---|---|---|
 | 2.1 | `ConnectionProfile` struct (non-secret fields: id, name, url, ssh config shape) | `feat/profile-model` |
 | 2.2 | `CredentialStore` trait + `KeyringCredentialStore` impl | `feat/credential-store` |
-| 2.3 | `ProfileStore` trait + file-backed TOML impl in OS config dir | `feat/profile-store` |
+| 2.3 | `ProfileStore` trait + file-backed TOML impl in OS config dir; tests use `tempfile` against the real file-backed impl (filesystem is cheap and faithful to test here) | `feat/profile-store` |
 | 2.4 | Error model: `GevoError { Network, Tunnel, Auth, Api(TypesenseMsg) }`, verbatim Typesense `message` | `feat/error-model` |
 | 2.5 | `TypesenseClient` trait + `HttpTypesenseClient` (reqwest) with methods just for /health, /stats.json, auth check | `feat/typesense-client` |
 | 2.6 | `SshTunnel` trait + implementation using `russh` (or `openssh`): open local forward, close on drop | `feat/ssh-tunnel` |
@@ -148,6 +149,7 @@ walk through from launch; no `TODO`/`unimplemented!()` in shipped code.
   no secrets logged.
 - Phase can't start until the previous phase's acceptance criteria are
   met.
-- Any deviation from a decision in [[0002-v1-requirements]] or
-  [[0001-gui-framework-choice]] requires a new ADR under
-  `docs/decision/`.
+- Any deviation from a decision in
+  [0002-v1-requirements](0002-v1-requirements.md) or
+  [0001-gui-framework-choice](../decision/0001-gui-framework-choice.md)
+  requires a new ADR under `docs/decision/`.

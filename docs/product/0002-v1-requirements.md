@@ -33,6 +33,12 @@ Gevo only talks to an existing Typesense instance.
   Credential Manager, macOS Keychain, Linux Secret Service via `keyring`
   crate or equivalent). Non-secret fields (name, url, ssh host/user/port)
   live in a local config file.
+- **Keyring unavailable** (headless Linux, no Secret Service running, etc.):
+  the app surfaces a clear error on connect/save ("OS keyring not available
+  — install/enable a Secret Service provider") and refuses to persist
+  secrets. **No plaintext fallback.** A profile without a persisted secret
+  can still be used in an ephemeral session where the user re-enters the
+  admin key per launch.
 - "Test connection" action validates reachability + admin key before saving
   and on-demand from the profile list.
 - Switching the active connection is a first-class action (profile picker/
@@ -112,10 +118,11 @@ Gevo only talks to an existing Typesense instance.
 ## Non-functional requirements
 
 - **Platforms**: Windows, macOS, Linux — single codebase, native builds for
-  each (see [[0001-gui-framework-choice]], egui).
+  each (see [GUI framework ADR](../decision/0001-gui-framework-choice.md),
+  egui).
 - **Memory**: avoid virtual-DOM-style overhead; this is the reason egui was
   chosen over web-view-based approaches — see
-  [[0001-gui-framework-choice]].
+  [GUI framework ADR](../decision/0001-gui-framework-choice.md).
 - **Offline behavior**: app launches and lets the user manage saved
   connection profiles even with no active/reachable Typesense server; only
   server-dependent views (collections, documents, keys, health) require a
