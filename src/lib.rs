@@ -1,3 +1,5 @@
+pub mod theme;
+
 pub const APP_NAME: &str = "Gevo";
 
 pub fn version() -> &'static str {
