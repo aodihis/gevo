@@ -36,10 +36,12 @@ impl FileProfileStore {
 }
 
 impl ProfileStore for FileProfileStore {
-    /// Falls back to an empty list if the file is missing, unreadable, or not valid TOML --
-    /// a corrupt profiles file should never block startup (same fallback as `utils::config`).
+    /// Falls back to an empty list if the file is missing or unreadable. If it exists but
+    /// fails to parse, the file is renamed to `profiles.toml.bak` first -- unlike settings,
+    /// losing saved connection profiles is real data loss, so the next `save_all` must not
+    /// silently overwrite the only copy of the corrupt data.
     fn load_all(&self) -> Vec<ConnectionProfile> {
-        crate::utils::toml_file::load_or_default::<ProfileFile>(&self.path).profiles
+        crate::utils::toml_file::load_or_backup::<ProfileFile>(&self.path).profiles
     }
 
     fn save_all(&self, profiles: &[ConnectionProfile]) -> std::io::Result<()> {
@@ -72,12 +74,17 @@ mod tests {
     }
 
     #[test]
-    fn load_all_on_corrupt_file_returns_empty() {
+    fn load_all_on_corrupt_file_returns_empty_and_backs_up_the_corrupt_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("corrupt.toml");
         fs::write(&path, "not valid toml {{{").unwrap();
-        let store = FileProfileStore::new(path);
+        let store = FileProfileStore::new(path.clone());
+
         assert_eq!(store.load_all(), Vec::new());
+
+        assert!(!path.exists(), "corrupt file should have been moved aside");
+        let backup = dir.path().join("corrupt.toml.bak");
+        assert_eq!(fs::read_to_string(backup).unwrap(), "not valid toml {{{");
     }
 
     #[test]
