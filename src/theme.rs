@@ -22,7 +22,6 @@ struct Tokens {
     border: Color32,
     input_border: Color32,
     text: Color32,
-    text_muted: Color32,
     danger_text: Color32,
     accent_fill: Color32,
     accent_text: Color32,
@@ -65,7 +64,6 @@ fn tokens(mode: ThemeMode, accent: Accent) -> Tokens {
             border: hex("#2C2E33"),
             input_border: hex("#34363C"),
             text: hex("#E7E5E0"),
-            text_muted: hex("#9A9890"),
             danger_text: hex("#F59A85"),
             accent_fill,
             accent_text,
@@ -78,8 +76,9 @@ fn tokens(mode: ThemeMode, accent: Accent) -> Tokens {
             border: hex("#DDDBD4"),
             input_border: hex("#D3D1CA"),
             text: hex("#1D1D1B"),
-            text_muted: hex("#67655F"),
-            danger_text: hex("#7A4B05"),
+            // Handoff defines danger fill/text only once (mode-invariant); light mode
+            // has no separate danger token, so use the fill color directly for contrast on white.
+            danger_text: hex("#B8402C"),
             accent_fill,
             accent_text,
         },
@@ -110,7 +109,7 @@ pub fn build_visuals(mode: ThemeMode, accent: Accent) -> Visuals {
     visuals.error_fg_color = t.danger_text;
     visuals.warn_fg_color = t.danger_text;
     visuals.extreme_bg_color = t.selected;
-    visuals.faint_bg_color = t.text_muted;
+    visuals.faint_bg_color = t.raised;
 
     visuals
 }
@@ -182,6 +181,14 @@ mod tests {
         let dark = build_visuals(ThemeMode::Dark, Accent::Amber);
         let light = build_visuals(ThemeMode::Light, Accent::Amber);
         assert_eq!(dark.error_fg_color, hex("#F59A85"));
-        assert_eq!(light.error_fg_color, hex("#7A4B05"));
+        assert_eq!(light.error_fg_color, hex("#B8402C"));
+    }
+
+    #[test]
+    fn faint_bg_color_is_a_background_token_not_a_text_color() {
+        let dark = build_visuals(ThemeMode::Dark, Accent::Amber);
+        let light = build_visuals(ThemeMode::Light, Accent::Amber);
+        assert_eq!(dark.faint_bg_color, hex("#202226"));
+        assert_eq!(light.faint_bg_color, hex("#F3F2EE"));
     }
 }
