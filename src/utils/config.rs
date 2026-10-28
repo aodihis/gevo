@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::state::Settings;
@@ -12,23 +11,18 @@ pub fn default_path() -> PathBuf {
 /// Loads settings from `path`. Falls back to `Settings::default()` if the file is missing,
 /// unreadable, or not valid TOML — a corrupt config should never block startup.
 pub fn load(path: &Path) -> Settings {
-    fs::read_to_string(path)
-        .ok()
-        .and_then(|contents| toml::from_str(&contents).ok())
-        .unwrap_or_default()
+    super::toml_file::load_or_default(path)
 }
 
 /// Persists `settings` to `path` as TOML, creating parent directories as needed.
 pub fn save(path: &Path, settings: &Settings) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let toml = toml::to_string_pretty(settings).map_err(std::io::Error::other)?;
-    fs::write(path, toml)
+    super::toml_file::save(path, settings)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
     use eframe::egui::ThemePreference;
 
