@@ -1,5 +1,9 @@
 /// One entry per screen in `docs/design/DESIGN_HANDOFF.md`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+///
+/// `EnumIter` (from `strum`) gives `Route::iter()` over every variant, generated from the enum
+/// definition itself — unlike a hand-maintained `ALL` array/slice, it can't drift out of sync
+/// when a variant is added.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter)]
 pub enum Route {
     Connections,
     ConnectionEdit,
@@ -15,21 +19,6 @@ pub enum Route {
 }
 
 impl Route {
-    /// All routes, for exhaustive iteration (nav lists, tests).
-    pub const ALL: [Route; 11] = [
-        Route::Connections,
-        Route::ConnectionEdit,
-        Route::Health,
-        Route::Settings,
-        Route::Collections,
-        Route::SchemaEditor,
-        Route::ConfirmDelete,
-        Route::Documents,
-        Route::Import,
-        Route::ApiKeys,
-        Route::KeyCreated,
-    ];
-
     /// Screen title, for the header breadcrumb and nav labels.
     pub fn title(self) -> &'static str {
         match self {
@@ -86,20 +75,22 @@ pub fn dispatch(route: Route, ui: &mut eframe::egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use strum::IntoEnumIterator;
 
     #[test]
     fn every_route_has_a_non_empty_title() {
-        for route in Route::ALL {
+        for route in Route::iter() {
             assert!(!route.title().is_empty(), "{route:?} has an empty title");
         }
     }
 
     #[test]
     fn titles_are_unique_per_route() {
-        let mut titles: Vec<&str> = Route::ALL.iter().map(|r| r.title()).collect();
+        let routes: Vec<Route> = Route::iter().collect();
+        let mut titles: Vec<&str> = routes.iter().map(|r| r.title()).collect();
         titles.sort_unstable();
         titles.dedup();
-        assert_eq!(titles.len(), Route::ALL.len());
+        assert_eq!(titles.len(), routes.len());
     }
 
     #[test]
