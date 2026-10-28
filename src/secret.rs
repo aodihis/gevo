@@ -1,3 +1,6 @@
+/// Hides `T` from `Debug` output. Only covers formatting — it does not zero memory on drop.
+/// Wrap the inner value in `zeroize::Zeroizing<T>` as well when it holds a live secret
+/// (admin API keys, SSH passwords/passphrases, newly-created API key values).
 pub struct Redacted<T>(pub T);
 
 impl<T> std::fmt::Debug for Redacted<T> {

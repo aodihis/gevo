@@ -25,7 +25,10 @@ impl Default for LogConfig {
 }
 
 fn default_log_dir() -> PathBuf {
-    std::env::temp_dir().join("gevo").join("logs")
+    dirs::data_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("gevo")
+        .join("logs")
 }
 
 pub fn sweep_old_logs(dir: &Path, keep_days: u32, now: SystemTime) -> io::Result<usize> {
@@ -51,8 +54,18 @@ pub fn sweep_old_logs(dir: &Path, keep_days: u32, now: SystemTime) -> io::Result
     Ok(removed)
 }
 
+/// Builds the filter from an explicit `RUST_LOG`-style override (or the configured level if
+/// `None`/empty). Takes the override as a parameter, rather than reading the environment
+/// directly, so tests don't need to mutate shared process-wide env state.
+fn make_env_filter_from(level: &str, rust_log_override: Option<&str>) -> EnvFilter {
+    match rust_log_override {
+        Some(directive) if !directive.is_empty() => EnvFilter::new(directive),
+        _ => EnvFilter::new(level),
+    }
+}
+
 fn make_env_filter(level: &str) -> EnvFilter {
-    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(level))
+    make_env_filter_from(level, std::env::var("RUST_LOG").ok().as_deref())
 }
 
 pub fn init_logging(cfg: &LogConfig) -> Option<WorkerGuard> {
@@ -139,11 +152,64 @@ mod tests {
     }
 
     #[test]
-    fn env_filter_falls_back_to_configured_level() {
-        unsafe {
-            std::env::remove_var("RUST_LOG");
-        }
-        let f = make_env_filter("warn");
+    fn env_filter_falls_back_to_configured_level_when_no_override() {
+        let f = make_env_filter_from("warn", None);
         assert!(f.to_string().contains("warn"));
+    }
+
+    #[test]
+    fn env_filter_falls_back_to_configured_level_when_override_is_empty() {
+        let f = make_env_filter_from("warn", Some(""));
+        assert!(f.to_string().contains("warn"));
+    }
+
+    #[test]
+    fn env_filter_uses_override_when_present() {
+        let f = make_env_filter_from("warn", Some("debug"));
+        assert!(f.to_string().contains("debug"));
+    }
+
+    #[test]
+    fn default_log_dir_ends_with_gevo_logs() {
+        let dir = default_log_dir();
+        let mut components: Vec<_> = dir.components().collect();
+        let logs = components.pop().unwrap();
+        let gevo = components.pop().unwrap();
+        assert_eq!(logs.as_os_str(), "logs");
+        assert_eq!(gevo.as_os_str(), "gevo");
+    }
+
+    #[test]
+    fn init_logging_disabled_returns_none_and_does_not_create_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let log_dir = dir.path().join("disabled-does-not-exist");
+        let cfg = LogConfig {
+            enabled: false,
+            dir: log_dir.clone(),
+            keep_days: 7,
+            level: "info".into(),
+        };
+
+        let guard = init_logging(&cfg);
+
+        assert!(guard.is_none());
+        assert!(!log_dir.exists());
+    }
+
+    #[test]
+    fn init_logging_enabled_returns_guard_and_creates_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let log_dir = dir.path().join("enabled");
+        let cfg = LogConfig {
+            enabled: true,
+            dir: log_dir.clone(),
+            keep_days: 7,
+            level: "info".into(),
+        };
+
+        let guard = init_logging(&cfg);
+
+        assert!(guard.is_some());
+        assert!(log_dir.is_dir());
     }
 }

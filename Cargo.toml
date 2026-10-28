@@ -11,6 +11,7 @@ name = "gevo"
 path = "src/main.rs"
 
 [dependencies]
+dirs = "5"
 eframe = "0.37"
 tracing = "0.1"
 tracing-appender = "0.2"
