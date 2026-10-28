@@ -1,3 +1,7 @@
+use eframe::egui::ThemePreference;
+
+use crate::ui::theme::Accent;
+
 /// One entry per screen in `docs/design/DESIGN_HANDOFF.md`; iterate with `Route::iter()`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter)]
 pub enum Route {
@@ -61,11 +65,23 @@ impl Default for Router {
     }
 }
 
-/// Renders the (currently empty) placeholder screen for a route. Render glue only — exempt
-/// from unit tests per `AGENTS.md` §6; `Route::title` and `Router` above are what's tested.
-pub fn dispatch(route: Route, ui: &mut eframe::egui::Ui) {
-    ui.heading(route.title());
-    ui.label("Coming soon.");
+/// User-controlled app settings, per `Settings.dc.html`: theme preference, accent, and the
+/// file-logging toggle (`AGENTS.md` §9). Persisted to disk as TOML by `crate::utils::config`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Settings {
+    pub theme_preference: ThemePreference,
+    pub accent: Accent,
+    pub logging_enabled: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            theme_preference: ThemePreference::System,
+            accent: Accent::Amber,
+            logging_enabled: false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -116,5 +132,13 @@ mod tests {
         assert_eq!(router.current(), Route::Documents);
         router.go_to(Route::Connections);
         assert_eq!(router.current(), Route::Connections);
+    }
+
+    #[test]
+    fn default_settings_follow_system_theme_with_amber_accent_and_logging_off() {
+        let settings = Settings::default();
+        assert_eq!(settings.theme_preference, ThemePreference::System);
+        assert_eq!(settings.accent, Accent::Amber);
+        assert!(!settings.logging_enabled);
     }
 }

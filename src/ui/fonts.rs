@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use eframe::egui::{self, FontData, FontDefinitions, FontFamily};
 
-const SANS_REGULAR: &[u8] = include_bytes!("../assets/fonts/IBMPlexSans/IBMPlexSans-Regular.ttf");
-const SANS_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/IBMPlexSans/IBMPlexSans-SemiBold.ttf");
-const MONO_REGULAR: &[u8] = include_bytes!("../assets/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf");
+const SANS_REGULAR: &[u8] =
+    include_bytes!("../../assets/fonts/IBMPlexSans/IBMPlexSans-Regular.ttf");
+const SANS_SEMIBOLD: &[u8] =
+    include_bytes!("../../assets/fonts/IBMPlexSans/IBMPlexSans-SemiBold.ttf");
+const MONO_REGULAR: &[u8] =
+    include_bytes!("../../assets/fonts/IBMPlexMono/IBMPlexMono-Regular.ttf");
 
 const SANS_REGULAR_NAME: &str = "IBMPlexSans-Regular";
 const SANS_SEMIBOLD_NAME: &str = "IBMPlexSans-SemiBold";

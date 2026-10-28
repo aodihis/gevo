@@ -25,7 +25,7 @@ impl Default for LogConfig {
 }
 
 fn default_log_dir() -> PathBuf {
-    crate::app_path(dirs::data_dir(), "logs")
+    super::paths::app_path(dirs::data_dir(), "logs")
 }
 
 pub fn sweep_old_logs(dir: &Path, keep_days: u32, now: SystemTime) -> io::Result<usize> {
