@@ -59,6 +59,12 @@ pub trait SshTunnel {
     fn open<'a>(&self, request: &TunnelRequest<'a>) -> Result<TunnelHandle, GevoError>;
 }
 
+/// Asks the user whether to trust a host key not yet in `known_hosts`. Blocking.
+#[cfg_attr(test, mockall::automock)]
+pub trait HostKeyPrompt: Send + Sync {
+    fn confirm(&self, host: &str, port: u16, key_type: &str, fingerprint_sha256: &str) -> bool;
+}
+
 /// How to authenticate, resolved from a request before any network I/O.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum AuthPlan<'a> {

@@ -5,42 +5,51 @@ use std::time::Duration;
 
 use russh::client::{self, Handle};
 use russh::keys::{
-    PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate, check_known_hosts_path,
-    known_hosts::learn_known_hosts_path, load_secret_key,
+    HashAlg, PrivateKey, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate,
+    check_known_hosts_path, known_hosts::learn_known_hosts_path, load_secret_key,
 };
 use tokio::io::copy_bidirectional;
 use tokio::net::TcpListener;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::domain::error::GevoError;
-use crate::domain::ssh_tunnel::{AuthPlan, SshTunnel, TunnelHandle, TunnelRequest, plan_auth};
+use crate::domain::ssh_tunnel::{
+    AuthPlan, HostKeyPrompt, SshTunnel, TunnelHandle, TunnelRequest, plan_auth,
+};
 
 fn tunnel_err(context: &str, err: impl std::fmt::Display) -> GevoError {
     GevoError::Tunnel(format!("{context}: {err}"))
 }
 
-/// Accepts a host key already in `known_hosts`, records an unseen one (trust on first use),
-/// and rejects a key that differs from the recorded one.
+/// Accepts a key already in `known_hosts`; records an unseen one only if the user confirms;
+/// rejects a key that differs from the recorded one without prompting.
 fn verify_host_key(
     host: &str,
     port: u16,
     key: &PublicKey,
     known_hosts: &Path,
+    prompt: &dyn HostKeyPrompt,
 ) -> Result<(), GevoError> {
     let known = match check_known_hosts_path(host, port, key, known_hosts) {
         Ok(known) => known,
         Err(russh::keys::Error::KeyChanged { line }) => {
             return Err(GevoError::Tunnel(format!(
-                "SSH host key for {host}:{port} changed (known_hosts line {line})"
+                "SSH host key for {host}:{port} changed (known_hosts line {line}); refusing to connect"
             )));
         }
         Err(err) => return Err(tunnel_err("cannot read known_hosts", err)),
     };
-    if !known {
-        learn_known_hosts_path(host, port, key, known_hosts)
-            .map_err(|err| tunnel_err("cannot record SSH host key", err))?;
+    if known {
+        return Ok(());
     }
-    Ok(())
+    let fingerprint = key.fingerprint(HashAlg::Sha256).to_string();
+    if !prompt.confirm(host, port, key.algorithm().as_str(), &fingerprint) {
+        return Err(GevoError::Tunnel(format!(
+            "SSH host key for {host}:{port} was rejected by the user"
+        )));
+    }
+    learn_known_hosts_path(host, port, key, known_hosts)
+        .map_err(|err| tunnel_err("cannot record SSH host key", err))
 }
 
 fn known_hosts_path() -> Result<PathBuf, GevoError> {
@@ -67,10 +76,24 @@ struct Client {
     host: String,
     port: u16,
     known_hosts: PathBuf,
+    prompt: Arc<dyn HostKeyPrompt>,
+}
+
+/// Carries the host-key verdict out of the handler, which russh would otherwise flatten.
+#[derive(Debug)]
+enum HandlerError {
+    Russh(russh::Error),
+    HostKey(GevoError),
+}
+
+impl From<russh::Error> for HandlerError {
+    fn from(err: russh::Error) -> Self {
+        Self::Russh(err)
+    }
 }
 
 impl client::Handler for Client {
-    type Error = russh::Error;
+    type Error = HandlerError;
 
     async fn check_server_key(
         &mut self,
@@ -79,13 +102,18 @@ impl client::Handler for Client {
         let PublicKeyOrCertificate::PublicKey { key, .. } = server_key else {
             return Ok(false);
         };
-        match verify_host_key(&self.host, self.port, key, &self.known_hosts) {
-            Ok(()) => Ok(true),
-            Err(err) => {
-                tracing::error!(category = err.category(), %err, "SSH host key rejected");
-                Ok(false)
-            }
-        }
+        verify_host_key(
+            &self.host,
+            self.port,
+            key,
+            &self.known_hosts,
+            self.prompt.as_ref(),
+        )
+        .map(|()| true)
+        .map_err(|err| {
+            tracing::error!(category = err.category(), %err, "SSH host key rejected");
+            HandlerError::HostKey(err)
+        })
     }
 }
 
@@ -158,6 +186,7 @@ async fn forward_connections(
 
 async fn open_forward(
     request: &TunnelRequest<'_>,
+    prompt: Arc<dyn HostKeyPrompt>,
     plan: AuthPlan<'_>,
     listener: TcpListener,
 ) -> Result<(), GevoError> {
@@ -166,6 +195,7 @@ async fn open_forward(
         host: ssh.host.clone(),
         port: ssh.port,
         known_hosts: known_hosts_path()?,
+        prompt,
     };
     let config = Arc::new(client::Config {
         keepalive_interval: Some(Duration::from_secs(30)),
@@ -174,11 +204,8 @@ async fn open_forward(
     let mut session = client::connect(config, (ssh.host.as_str(), ssh.port), handler)
         .await
         .map_err(|err| match err {
-            russh::Error::UnknownKey => GevoError::Tunnel(format!(
-                "SSH host key for {}:{} was rejected; check known_hosts",
-                ssh.host, ssh.port
-            )),
-            other => tunnel_err("cannot connect to SSH host", other),
+            HandlerError::HostKey(err) => err,
+            HandlerError::Russh(other) => tunnel_err("cannot connect to SSH host", other),
         })?;
     authenticate(&mut session, &ssh.username, plan).await?;
 
@@ -203,12 +230,13 @@ impl Drop for RuntimeGuard {
 }
 
 /// `SshTunnel` backed by `russh` direct-tcpip channels.
-#[derive(Default)]
-pub struct RusshTunnel;
+pub struct RusshTunnel {
+    prompt: Arc<dyn HostKeyPrompt>,
+}
 
 impl RusshTunnel {
-    pub fn new() -> Self {
-        Self
+    pub fn new(prompt: Arc<dyn HostKeyPrompt>) -> Self {
+        Self { prompt }
     }
 }
 
@@ -231,7 +259,12 @@ impl SshTunnel for RusshTunnel {
             .port();
         drop(enter);
 
-        runtime.block_on(open_forward(request, plan, listener))?;
+        runtime.block_on(open_forward(
+            request,
+            Arc::clone(&self.prompt),
+            plan,
+            listener,
+        ))?;
         Ok(TunnelHandle::new(
             local_port,
             Box::new(RuntimeGuard(Some(runtime))),
@@ -248,32 +281,80 @@ mod tests {
 
     use super::*;
     use crate::domain::profile::{SshAuthMethod, SshConfig};
+    use crate::domain::ssh_tunnel::MockHostKeyPrompt;
 
     fn ed25519(byte: u8) -> PublicKey {
         PublicKey::from(KeyData::Ed25519(Ed25519PublicKey([byte; 32])))
     }
 
-    #[test]
-    fn unseen_host_key_is_recorded_then_accepted() {
+    fn known_hosts_with(key: &PublicKey) -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("known_hosts");
-        let key = ed25519(1);
+        learn_known_hosts_path("example.com", 22, key, &path).unwrap();
+        (dir, path)
+    }
 
-        verify_host_key("example.com", 22, &key, &path).unwrap();
-
-        assert!(check_known_hosts_path("example.com", 22, &key, &path).unwrap());
-        verify_host_key("example.com", 22, &key, &path).unwrap();
+    fn never_prompted() -> MockHostKeyPrompt {
+        let mut prompt = MockHostKeyPrompt::new();
+        prompt.expect_confirm().never();
+        prompt
     }
 
     #[test]
-    fn changed_host_key_is_rejected_as_a_tunnel_error() {
+    fn unknown_host_key_accepted_by_user_is_recorded() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("known_hosts");
-        verify_host_key("example.com", 22, &ed25519(1), &path).unwrap();
+        let key = ed25519(1);
+        let expected = key.fingerprint(HashAlg::Sha256).to_string();
+        let mut prompt = MockHostKeyPrompt::new();
+        prompt
+            .expect_confirm()
+            .withf(move |host, port, key_type, fp| {
+                host == "example.com"
+                    && *port == 22
+                    && key_type == "ssh-ed25519"
+                    && fp == expected
+                    && fp.starts_with("SHA256:")
+            })
+            .once()
+            .returning(|_, _, _, _| true);
 
-        let err = verify_host_key("example.com", 22, &ed25519(2), &path).unwrap_err();
+        verify_host_key("example.com", 22, &key, &path, &prompt).unwrap();
 
-        assert!(matches!(&err, GevoError::Tunnel(msg) if msg.contains("changed")));
+        assert!(check_known_hosts_path("example.com", 22, &key, &path).unwrap());
+    }
+
+    #[test]
+    fn unknown_host_key_rejected_by_user_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("known_hosts");
+        let mut prompt = MockHostKeyPrompt::new();
+        prompt.expect_confirm().once().returning(|_, _, _, _| false);
+
+        let err = verify_host_key("example.com", 22, &ed25519(1), &path, &prompt).unwrap_err();
+
+        assert!(matches!(&err, GevoError::Tunnel(msg) if msg.contains("rejected by the user")));
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn known_matching_host_key_does_not_prompt() {
+        let key = ed25519(1);
+        let (_dir, path) = known_hosts_with(&key);
+
+        verify_host_key("example.com", 22, &key, &path, &never_prompted()).unwrap();
+    }
+
+    #[test]
+    fn known_changed_host_key_is_rejected_without_prompting() {
+        let (_dir, path) = known_hosts_with(&ed25519(1));
+
+        let err =
+            verify_host_key("example.com", 22, &ed25519(2), &path, &never_prompted()).unwrap_err();
+
+        assert!(
+            matches!(&err, GevoError::Tunnel(msg) if msg.contains("example.com") && msg.contains("changed"))
+        );
     }
 
     #[tokio::test]
@@ -315,7 +396,9 @@ mod tests {
             secret: None,
         };
 
-        let err = RusshTunnel::new().open(&request).unwrap_err();
+        let err = RusshTunnel::new(Arc::new(MockHostKeyPrompt::new()))
+            .open(&request)
+            .unwrap_err();
 
         assert!(matches!(err, GevoError::Tunnel(_)));
     }
@@ -340,7 +423,9 @@ mod tests {
             secret: Some(&password),
         };
 
-        let handle = RusshTunnel::new().open(&request).unwrap();
+        let mut prompt = MockHostKeyPrompt::new();
+        prompt.expect_confirm().returning(|_, _, _, _| true);
+        let handle = RusshTunnel::new(Arc::new(prompt)).open(&request).unwrap();
         let port = handle.local_port();
         assert!(TcpStream::connect(("127.0.0.1", port)).is_ok());
 
