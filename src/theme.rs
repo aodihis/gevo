@@ -1,17 +1,23 @@
-use eframe::egui::{Color32, Stroke, Visuals};
+use eframe::egui::{Color32, Stroke, Theme, Visuals};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ThemeMode {
-    Dark,
-    Light,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter)]
 pub enum Accent {
     Amber,
     Blue,
     Green,
     Violet,
+}
+
+impl Accent {
+    /// Display name for the Settings screen's accent picker.
+    pub fn name(self) -> &'static str {
+        match self {
+            Accent::Amber => "Amber",
+            Accent::Blue => "Blue",
+            Accent::Green => "Green",
+            Accent::Violet => "Violet",
+        }
+    }
 }
 
 struct Tokens {
@@ -36,27 +42,27 @@ fn hex(s: &str) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
-fn accent_hex(accent: Accent, mode: ThemeMode) -> &'static str {
+fn accent_hex(accent: Accent, mode: Theme) -> &'static str {
     match (accent, mode) {
-        (Accent::Amber, ThemeMode::Dark) => "#E8A33D",
-        (Accent::Amber, ThemeMode::Light) => "#A8650F",
-        (Accent::Blue, ThemeMode::Dark) => "#6EA8FE",
-        (Accent::Blue, ThemeMode::Light) => "#2F64C8",
-        (Accent::Green, ThemeMode::Dark) => "#5FC08A",
-        (Accent::Green, ThemeMode::Light) => "#23804D",
-        (Accent::Violet, ThemeMode::Dark) => "#B394F5",
-        (Accent::Violet, ThemeMode::Light) => "#6C46C9",
+        (Accent::Amber, Theme::Dark) => "#E8A33D",
+        (Accent::Amber, Theme::Light) => "#A8650F",
+        (Accent::Blue, Theme::Dark) => "#6EA8FE",
+        (Accent::Blue, Theme::Light) => "#2F64C8",
+        (Accent::Green, Theme::Dark) => "#5FC08A",
+        (Accent::Green, Theme::Light) => "#23804D",
+        (Accent::Violet, Theme::Dark) => "#B394F5",
+        (Accent::Violet, Theme::Light) => "#6C46C9",
     }
 }
 
-fn tokens(mode: ThemeMode, accent: Accent) -> Tokens {
+fn tokens(mode: Theme, accent: Accent) -> Tokens {
     let accent_fill = hex(accent_hex(accent, mode));
     let accent_text = match mode {
-        ThemeMode::Dark => hex("#1A1408"),
-        ThemeMode::Light => hex("#FFFFFF"),
+        Theme::Dark => hex("#1A1408"),
+        Theme::Light => hex("#FFFFFF"),
     };
     match mode {
-        ThemeMode::Dark => Tokens {
+        Theme::Dark => Tokens {
             page_bg: hex("#121315"),
             panel_bg: hex("#17181B"),
             raised: hex("#202226"),
@@ -68,7 +74,7 @@ fn tokens(mode: ThemeMode, accent: Accent) -> Tokens {
             accent_fill,
             accent_text,
         },
-        ThemeMode::Light => Tokens {
+        Theme::Light => Tokens {
             page_bg: hex("#FBFAF8"),
             panel_bg: hex("#FFFFFF"),
             raised: hex("#F3F2EE"),
@@ -87,19 +93,19 @@ fn tokens(mode: ThemeMode, accent: Accent) -> Tokens {
 
 /// Sidebar background, distinct from the general panel background
 /// (handoff: sidebar bg #16171A vs panel bg #17181B in dark mode).
-pub fn sidebar_bg(mode: ThemeMode) -> Color32 {
+pub fn sidebar_bg(mode: Theme) -> Color32 {
     match mode {
-        ThemeMode::Dark => hex("#16171A"),
-        ThemeMode::Light => hex("#F3F2EE"),
+        Theme::Dark => hex("#16171A"),
+        Theme::Light => hex("#F3F2EE"),
     }
 }
 
 /// Builds an `egui::Visuals` from the Gevo design tokens for the given mode + accent.
-pub fn build_visuals(mode: ThemeMode, accent: Accent) -> Visuals {
+pub fn build_visuals(mode: Theme, accent: Accent) -> Visuals {
     let t = tokens(mode, accent);
     let mut visuals = match mode {
-        ThemeMode::Dark => Visuals::dark(),
-        ThemeMode::Light => Visuals::light(),
+        Theme::Dark => Visuals::dark(),
+        Theme::Light => Visuals::light(),
     };
 
     visuals.override_text_color = Some(t.text);
@@ -135,7 +141,7 @@ mod tests {
 
     #[test]
     fn dark_mode_uses_dark_page_and_panel_tokens() {
-        let v = build_visuals(ThemeMode::Dark, Accent::Amber);
+        let v = build_visuals(Theme::Dark, Accent::Amber);
         assert_eq!(v.window_fill, hex("#121315"));
         assert_eq!(v.panel_fill, hex("#17181B"));
         assert_eq!(v.override_text_color, Some(hex("#E7E5E0")));
@@ -143,7 +149,7 @@ mod tests {
 
     #[test]
     fn light_mode_uses_light_page_and_panel_tokens() {
-        let v = build_visuals(ThemeMode::Light, Accent::Amber);
+        let v = build_visuals(Theme::Light, Accent::Amber);
         assert_eq!(v.window_fill, hex("#FBFAF8"));
         assert_eq!(v.panel_fill, hex("#FFFFFF"));
         assert_eq!(v.override_text_color, Some(hex("#1D1D1B")));
@@ -158,7 +164,7 @@ mod tests {
             (Accent::Violet, "#B394F5"),
         ];
         for (accent, expected) in cases {
-            let v = build_visuals(ThemeMode::Dark, accent);
+            let v = build_visuals(Theme::Dark, accent);
             assert_eq!(v.selection.bg_fill, hex(expected), "{accent:?}");
         }
     }
@@ -172,38 +178,50 @@ mod tests {
             (Accent::Violet, "#6C46C9"),
         ];
         for (accent, expected) in cases {
-            let v = build_visuals(ThemeMode::Light, accent);
+            let v = build_visuals(Theme::Light, accent);
             assert_eq!(v.selection.bg_fill, hex(expected), "{accent:?}");
         }
     }
 
     #[test]
     fn accent_text_is_dark_in_dark_mode_and_white_in_light_mode() {
-        let dark = build_visuals(ThemeMode::Dark, Accent::Blue);
-        let light = build_visuals(ThemeMode::Light, Accent::Blue);
+        let dark = build_visuals(Theme::Dark, Accent::Blue);
+        let light = build_visuals(Theme::Light, Accent::Blue);
         assert_eq!(dark.selection.stroke.color, hex("#1A1408"));
         assert_eq!(light.selection.stroke.color, hex("#FFFFFF"));
     }
 
     #[test]
     fn danger_text_differs_between_modes() {
-        let dark = build_visuals(ThemeMode::Dark, Accent::Amber);
-        let light = build_visuals(ThemeMode::Light, Accent::Amber);
+        let dark = build_visuals(Theme::Dark, Accent::Amber);
+        let light = build_visuals(Theme::Light, Accent::Amber);
         assert_eq!(dark.error_fg_color, hex("#F59A85"));
         assert_eq!(light.error_fg_color, hex("#B8402C"));
     }
 
     #[test]
     fn faint_bg_color_is_a_background_token_not_a_text_color() {
-        let dark = build_visuals(ThemeMode::Dark, Accent::Amber);
-        let light = build_visuals(ThemeMode::Light, Accent::Amber);
+        let dark = build_visuals(Theme::Dark, Accent::Amber);
+        let light = build_visuals(Theme::Light, Accent::Amber);
         assert_eq!(dark.faint_bg_color, hex("#202226"));
         assert_eq!(light.faint_bg_color, hex("#F3F2EE"));
     }
 
     #[test]
     fn sidebar_bg_matches_dark_and_light_tokens() {
-        assert_eq!(sidebar_bg(ThemeMode::Dark), hex("#16171A"));
-        assert_eq!(sidebar_bg(ThemeMode::Light), hex("#F3F2EE"));
+        assert_eq!(sidebar_bg(Theme::Dark), hex("#16171A"));
+        assert_eq!(sidebar_bg(Theme::Light), hex("#F3F2EE"));
+    }
+
+    #[test]
+    fn every_accent_has_a_unique_non_empty_name() {
+        use strum::IntoEnumIterator;
+        let mut names: Vec<&str> = Accent::iter().map(Accent::name).collect();
+        for name in &names {
+            assert!(!name.is_empty());
+        }
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), Accent::iter().count());
     }
 }
