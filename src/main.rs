@@ -106,8 +106,8 @@ impl eframe::App for GevoApp {
             self.router.go_to(route);
         }
 
-        if settings_changed {
-            let _ = config::save(&self.config_path, &self.settings);
+        if settings_changed && let Err(err) = config::save(&self.config_path, &self.settings) {
+            tracing::error!(category = "CONFIG", %err, "failed to save settings");
         }
     }
 }
