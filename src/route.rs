@@ -1,8 +1,4 @@
-/// One entry per screen in `docs/design/DESIGN_HANDOFF.md`.
-///
-/// `EnumIter` (from `strum`) gives `Route::iter()` over every variant, generated from the enum
-/// definition itself — unlike a hand-maintained `ALL` array/slice, it can't drift out of sync
-/// when a variant is added.
+/// One entry per screen in `docs/design/DESIGN_HANDOFF.md`; iterate with `Route::iter()`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter)]
 pub enum Route {
     Connections,
