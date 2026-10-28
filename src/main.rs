@@ -1,10 +1,11 @@
 use eframe::egui;
 use gevo::APP_NAME;
-use gevo::config;
-use gevo::logging::{LogConfig, init_logging};
-use gevo::route::{self, Route, Router};
-use gevo::settings::{self, Settings};
-use gevo::theme::{self, build_visuals, sidebar_bg};
+use gevo::state::{Route, Router, Settings};
+use gevo::ui::route;
+use gevo::ui::settings;
+use gevo::ui::theme::{self, build_visuals, sidebar_bg};
+use gevo::utils::config;
+use gevo::utils::logging::{LogConfig, init_logging};
 
 /// Top-level sidebar nav destinations, per `Sidebar.dc.html` ("Server" nav + bottom section).
 /// Other routes (ConnectionEdit, SchemaEditor, Documents, Import, the modals) are reached from
@@ -22,7 +23,7 @@ fn main() -> eframe::Result {
     let settings = config::load(&config_path);
 
     // Keep the guard alive for the process lifetime so buffered log lines get flushed.
-    // The logging toggle in Settings takes effect on restart (see src/settings.rs).
+    // The logging toggle in Settings takes effect on restart (see src/ui/settings.rs).
     let _log_guard = init_logging(&LogConfig {
         enabled: settings.logging_enabled,
         ..LogConfig::default()
@@ -33,7 +34,7 @@ fn main() -> eframe::Result {
         APP_NAME,
         options,
         Box::new(move |cc| {
-            gevo::fonts::install_fonts(&cc.egui_ctx);
+            gevo::ui::fonts::install_fonts(&cc.egui_ctx);
             Ok(Box::new(GevoApp {
                 settings,
                 config_path,
@@ -75,7 +76,7 @@ impl eframe::App for GevoApp {
             self.applied_visuals = Some((resolved, settings.accent));
         }
 
-        gevo::shell::render(
+        gevo::ui::shell::render(
             ui,
             sidebar_bg(resolved),
             |ui| {

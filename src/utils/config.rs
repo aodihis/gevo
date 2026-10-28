@@ -1,12 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::settings::Settings;
+use crate::state::Settings;
 
 /// Default config file location, under the OS config dir per `AGENTS.md` §9's logging
 /// directory convention (same "OS data/config dir, not temp" rule applies here).
 pub fn default_path() -> PathBuf {
-    crate::app_path(dirs::config_dir(), "config.toml")
+    super::paths::app_path(dirs::config_dir(), "config.toml")
 }
 
 /// Loads settings from `path`. Falls back to `Settings::default()` if the file is missing,
@@ -32,7 +32,7 @@ mod tests {
     use super::*;
     use eframe::egui::ThemePreference;
 
-    use crate::theme::Accent;
+    use crate::ui::theme::Accent;
 
     #[test]
     fn default_path_ends_with_gevo_config_toml() {
