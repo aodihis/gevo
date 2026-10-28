@@ -1,6 +1,7 @@
 pub mod fonts;
 pub mod logging;
 pub mod secret;
+pub mod shell;
 pub mod theme;
 
 pub const APP_NAME: &str = "Gevo";

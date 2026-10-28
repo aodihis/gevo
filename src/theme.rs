@@ -85,6 +85,15 @@ fn tokens(mode: ThemeMode, accent: Accent) -> Tokens {
     }
 }
 
+/// Sidebar background, distinct from the general panel background
+/// (handoff: sidebar bg #16171A vs panel bg #17181B in dark mode).
+pub fn sidebar_bg(mode: ThemeMode) -> Color32 {
+    match mode {
+        ThemeMode::Dark => hex("#16171A"),
+        ThemeMode::Light => hex("#F3F2EE"),
+    }
+}
+
 /// Builds an `egui::Visuals` from the Gevo design tokens for the given mode + accent.
 pub fn build_visuals(mode: ThemeMode, accent: Accent) -> Visuals {
     let t = tokens(mode, accent);
@@ -190,5 +199,11 @@ mod tests {
         let light = build_visuals(ThemeMode::Light, Accent::Amber);
         assert_eq!(dark.faint_bg_color, hex("#202226"));
         assert_eq!(light.faint_bg_color, hex("#F3F2EE"));
+    }
+
+    #[test]
+    fn sidebar_bg_matches_dark_and_light_tokens() {
+        assert_eq!(sidebar_bg(ThemeMode::Dark), hex("#16171A"));
+        assert_eq!(sidebar_bg(ThemeMode::Light), hex("#F3F2EE"));
     }
 }
