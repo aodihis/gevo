@@ -2,6 +2,7 @@ pub mod fonts;
 pub mod logging;
 pub mod route;
 pub mod secret;
+pub mod settings;
 pub mod shell;
 pub mod theme;
 

@@ -2,7 +2,8 @@ use eframe::egui;
 use gevo::APP_NAME;
 use gevo::logging::{LogConfig, init_logging};
 use gevo::route::{self, Route, Router};
-use gevo::theme::{Accent, ThemeMode, build_visuals, sidebar_bg};
+use gevo::settings::{self, Settings};
+use gevo::theme::{self, build_visuals, sidebar_bg};
 
 /// Top-level sidebar nav destinations, per `Sidebar.dc.html` ("Server" nav + bottom section).
 /// Other routes (ConnectionEdit, SchemaEditor, Documents, Import, the modals) are reached from
@@ -25,8 +26,6 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| {
             gevo::fonts::install_fonts(&cc.egui_ctx);
-            cc.egui_ctx
-                .set_visuals(build_visuals(ThemeMode::Dark, Accent::Amber));
             Ok(Box::<GevoApp>::default())
         }),
     )
@@ -35,6 +34,9 @@ fn main() -> eframe::Result {
 #[derive(Default)]
 struct GevoApp {
     router: Router,
+    settings: Settings,
+    applied_preference: Option<egui::ThemePreference>,
+    applied_visuals: Option<(egui::Theme, theme::Accent)>,
 }
 
 impl eframe::App for GevoApp {
@@ -42,9 +44,26 @@ impl eframe::App for GevoApp {
         let current = self.router.current();
         let mut clicked = None;
 
+        let ctx = ui.ctx().clone();
+        let settings = self.settings;
+
+        // Only call set_theme when the preference itself changed; cheap either way, but this
+        // keeps it off the hot path when nothing changed.
+        if self.applied_preference != Some(settings.theme_preference) {
+            ctx.set_theme(settings.theme_preference);
+            self.applied_preference = Some(settings.theme_preference);
+        }
+        // ctx.theme() is a cheap memory read and is re-checked every frame (unlike the
+        // preference) so a live OS dark/light flip is still picked up while on "System".
+        let resolved = ctx.theme();
+        if self.applied_visuals != Some((resolved, settings.accent)) {
+            ctx.set_visuals(build_visuals(resolved, settings.accent));
+            self.applied_visuals = Some((resolved, settings.accent));
+        }
+
         gevo::shell::render(
             ui,
-            sidebar_bg(ThemeMode::Dark),
+            sidebar_bg(resolved),
             |ui| {
                 ui.heading(APP_NAME);
                 ui.separator();
@@ -61,7 +80,11 @@ impl eframe::App for GevoApp {
                 ui.label(current.title());
             },
             |ui| {
-                route::dispatch(current, ui);
+                if current == Route::Settings {
+                    settings::render(&mut self.settings, ui);
+                } else {
+                    route::dispatch(current, ui);
+                }
             },
         );
 
