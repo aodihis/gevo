@@ -10,7 +10,10 @@ fn main() -> eframe::Result {
     eframe::run_native(
         APP_NAME,
         options,
-        Box::new(|_cc| Ok(Box::<GevoApp>::default())),
+        Box::new(|cc| {
+            gevo::fonts::install_fonts(&cc.egui_ctx);
+            Ok(Box::<GevoApp>::default())
+        }),
     )
 }
 

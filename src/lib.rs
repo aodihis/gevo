@@ -1,3 +1,4 @@
+pub mod fonts;
 pub mod logging;
 pub mod secret;
 pub mod theme;
