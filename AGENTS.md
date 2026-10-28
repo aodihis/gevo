@@ -52,6 +52,10 @@ abstraction.
   mainstream one unless there's a concrete reason not to.
 - Don't design for hypothetical future requirements. YAGNI.
 - No half-finished implementations — if a path isn't done, don't ship it.
+- Before committing, run `/simplify` (or an equivalent reuse/simplification/
+  efficiency pass) over the changed code and apply what it finds. Catches
+  the premature abstractions and dead weight this section warns against
+  before they reach review.
 
 ## 5. Avoid unnecessary clones
 
@@ -136,6 +140,7 @@ is.
 
 - [ ] Tests written first, all tests pass locally (`cargo test`)
 - [ ] `cargo fmt` clean, `cargo clippy -- -D warnings` clean
+- [ ] `/simplify` (or equivalent) run over the changed code before committing
 - [ ] No unnecessary clones introduced; `&`/`&mut` where possible
 - [ ] No secrets written to logs or persisted outside the OS keychain
 - [ ] Public API items have at least one unit test
