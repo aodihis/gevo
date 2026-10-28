@@ -1,7 +1,11 @@
 use eframe::egui;
 use gevo::APP_NAME;
+use gevo::logging::{LogConfig, init_logging};
 
 fn main() -> eframe::Result {
+    // Keep the guard alive for the process lifetime so buffered log lines get flushed.
+    let _log_guard = init_logging(&LogConfig::default());
+
     let options = eframe::NativeOptions::default();
     eframe::run_native(
         APP_NAME,
