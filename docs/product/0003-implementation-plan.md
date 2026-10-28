@@ -69,7 +69,7 @@ mockable (§2). All functions covered (§6). Avoid clones (§5).
 | 2.2 | `CredentialStore` trait + `KeyringCredentialStore` impl | `feat/credential-store` |
 | 2.3 | `ProfileStore` trait + file-backed TOML impl in OS config dir; tests use `tempfile` against the real file-backed impl (filesystem is cheap and faithful to test here) | `feat/profile-store` |
 | 2.4 | Error model: `GevoError { Network, Tunnel, Auth, Api(TypesenseMsg) }`, verbatim Typesense `message` | `feat/error-model` |
-| 2.5 | `TypesenseClient` trait + `HttpTypesenseClient` (reqwest) with methods just for /health, /stats.json, auth check | `feat/typesense-client` |
+| 2.5 | `TypesenseClient` trait + implementation wrapping the official `typesense-rust` SDK (see [0002-typesense-client-sdk](../decision/0002-typesense-client-sdk.md)) with methods just for /health, /stats.json, auth check | `feat/typesense-client` |
 | 2.6 | `SshTunnel` trait + implementation using `russh` (or `openssh`): open local forward, close on drop | `feat/ssh-tunnel` |
 | 2.7 | `ConnectionService` orchestrates: open tunnel (if any) → test /health → auth check, stepwise results | `feat/connection-service` |
 
