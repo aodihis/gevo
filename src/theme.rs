@@ -1,6 +1,8 @@
 use eframe::egui::{Color32, Stroke, Theme, Visuals};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter, serde::Serialize, serde::Deserialize,
+)]
 pub enum Accent {
     Amber,
     Blue,
