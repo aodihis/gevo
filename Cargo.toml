@@ -13,7 +13,10 @@ path = "src/main.rs"
 [dependencies]
 dirs = "5"
 eframe = "0.37"
+egui = { version = "0.37", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
 strum = { version = "0.27", features = ["derive"] }
+toml = "0.8"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

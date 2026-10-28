@@ -1,5 +1,6 @@
 use eframe::egui;
 use gevo::APP_NAME;
+use gevo::config;
 use gevo::logging::{LogConfig, init_logging};
 use gevo::route::{self, Route, Router};
 use gevo::settings::{self, Settings};
@@ -17,16 +18,27 @@ const NAV_ROUTES: [Route; 5] = [
 ];
 
 fn main() -> eframe::Result {
+    let config_path = config::default_path();
+    let settings = config::load(&config_path);
+
     // Keep the guard alive for the process lifetime so buffered log lines get flushed.
-    let _log_guard = init_logging(&LogConfig::default());
+    // The logging toggle in Settings takes effect on restart (see src/settings.rs).
+    let _log_guard = init_logging(&LogConfig {
+        enabled: settings.logging_enabled,
+        ..LogConfig::default()
+    });
 
     let options = eframe::NativeOptions::default();
     eframe::run_native(
         APP_NAME,
         options,
-        Box::new(|cc| {
+        Box::new(move |cc| {
             gevo::fonts::install_fonts(&cc.egui_ctx);
-            Ok(Box::<GevoApp>::default())
+            Ok(Box::new(GevoApp {
+                settings,
+                config_path,
+                ..Default::default()
+            }))
         }),
     )
 }
@@ -35,6 +47,7 @@ fn main() -> eframe::Result {
 struct GevoApp {
     router: Router,
     settings: Settings,
+    config_path: std::path::PathBuf,
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
 }
@@ -43,6 +56,7 @@ impl eframe::App for GevoApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let current = self.router.current();
         let mut clicked = None;
+        let mut settings_changed = false;
 
         let ctx = ui.ctx().clone();
         let settings = self.settings;
@@ -81,7 +95,7 @@ impl eframe::App for GevoApp {
             },
             |ui| {
                 if current == Route::Settings {
-                    settings::render(&mut self.settings, ui);
+                    settings_changed = settings::render(&mut self.settings, ui);
                 } else {
                     route::dispatch(current, ui);
                 }
@@ -90,6 +104,10 @@ impl eframe::App for GevoApp {
 
         if let Some(route) = clicked {
             self.router.go_to(route);
+        }
+
+        if settings_changed {
+            let _ = config::save(&self.config_path, &self.settings);
         }
     }
 }
