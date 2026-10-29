@@ -3,6 +3,7 @@ use gevo::APP_NAME;
 use gevo::domain::profile::ConnectionProfile;
 use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::state::{Route, Router, Settings};
+use gevo::ui::profile_edit::{self, Outcome};
 use gevo::ui::profiles::{self, LastTest};
 use gevo::ui::route;
 use gevo::ui::settings;
@@ -42,7 +43,6 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             gevo::ui::fonts::install_fonts(&cc.egui_ctx);
             Ok(Box::new(GevoApp {
-                profiles: FileProfileStore::new(FileProfileStore::default_path()).load_all(),
                 settings,
                 config_path,
                 profiles,
@@ -59,10 +59,10 @@ struct GevoApp {
     profiles: Vec<ConnectionProfile>,
     switcher: SwitcherState,
     config_path: std::path::PathBuf,
-    profiles: Vec<ConnectionProfile>,
     last_tests: std::collections::HashMap<uuid::Uuid, LastTest>,
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
+    profile_edit: Option<profile_edit::ProfileEditScreen>,
 }
 
 impl eframe::App for GevoApp {
@@ -71,6 +71,8 @@ impl eframe::App for GevoApp {
         let mut clicked = None;
         let mut profiles_action = None;
         let mut settings_changed = false;
+        let mut leave_edit = false;
+        let mut profile_saved = false;
 
         let ctx = ui.ctx().clone();
         let settings = self.settings;
@@ -122,6 +124,16 @@ impl eframe::App for GevoApp {
                     settings_changed = settings::render(&mut self.settings, ui);
                 } else if current == Route::Connections {
                     profiles_action = profiles::render(ui, &self.profiles, &self.last_tests, false);
+                } else if current == Route::ConnectionEdit {
+                    let screen = self
+                        .profile_edit
+                        .get_or_insert_with(|| profile_edit::ProfileEditScreen::new(None));
+                    let outcome = screen.render(ui);
+                    if !matches!(outcome, Outcome::None) {
+                        self.profile_edit = None;
+                        leave_edit = true;
+                    }
+                    profile_saved = matches!(outcome, Outcome::Saved);
                 } else {
                     route::dispatch(current, ui);
                 }
@@ -133,6 +145,12 @@ impl eframe::App for GevoApp {
             self.router.go_to(Route::ConnectionEdit);
         }
 
+        if profile_saved {
+            self.profiles = FileProfileStore::new(FileProfileStore::default_path()).load_all();
+        }
+        if leave_edit {
+            clicked = Some(Route::Connections);
+        }
         if let Some(route) = clicked {
             self.router.go_to(route);
         }

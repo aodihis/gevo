@@ -1,4 +1,6 @@
 pub mod fonts;
+pub mod profile_edit;
+pub mod profile_form;
 pub mod profiles;
 pub mod route;
 pub mod settings;
