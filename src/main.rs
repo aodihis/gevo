@@ -127,9 +127,14 @@ impl eframe::App for GevoApp {
                     let screen = self
                         .profile_edit
                         .get_or_insert_with(|| profile_edit::ProfileEditScreen::new(None));
-                    if !matches!(screen.render(ui), Outcome::None) {
+                    let outcome = screen.render(ui);
+                    if !matches!(outcome, Outcome::None) {
                         self.profile_edit = None;
                         leave_edit = true;
+                    }
+                    if matches!(outcome, Outcome::Saved) {
+                        self.profiles =
+                            FileProfileStore::new(FileProfileStore::default_path()).load_all();
                     }
                 } else {
                     route::dispatch(current, ui);
