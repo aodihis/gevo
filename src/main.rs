@@ -72,6 +72,7 @@ impl eframe::App for GevoApp {
         let mut profiles_action = None;
         let mut settings_changed = false;
         let mut leave_edit = false;
+        let mut profile_saved = false;
 
         let ctx = ui.ctx().clone();
         let settings = self.settings;
@@ -132,10 +133,7 @@ impl eframe::App for GevoApp {
                         self.profile_edit = None;
                         leave_edit = true;
                     }
-                    if matches!(outcome, Outcome::Saved) {
-                        self.profiles =
-                            FileProfileStore::new(FileProfileStore::default_path()).load_all();
-                    }
+                    profile_saved = matches!(outcome, Outcome::Saved);
                 } else {
                     route::dispatch(current, ui);
                 }
@@ -147,6 +145,9 @@ impl eframe::App for GevoApp {
             self.router.go_to(Route::ConnectionEdit);
         }
 
+        if profile_saved {
+            self.profiles = FileProfileStore::new(FileProfileStore::default_path()).load_all();
+        }
         if leave_edit {
             clicked = Some(Route::Connections);
         }
