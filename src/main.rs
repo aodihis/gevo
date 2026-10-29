@@ -3,6 +3,7 @@ use gevo::APP_NAME;
 use gevo::domain::profile::ConnectionProfile;
 use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::state::{Route, Router, Settings};
+use gevo::ui::profiles::{self, LastTest};
 use gevo::ui::route;
 use gevo::ui::settings;
 use gevo::ui::sidebar_switcher::{self, DotState, SwitcherAction, SwitcherState};
@@ -32,6 +33,8 @@ fn main() -> eframe::Result {
         ..LogConfig::default()
     });
 
+    let profiles = FileProfileStore::new(FileProfileStore::default_path()).load_all();
+
     let options = eframe::NativeOptions::default();
     eframe::run_native(
         APP_NAME,
@@ -42,6 +45,7 @@ fn main() -> eframe::Result {
                 profiles: FileProfileStore::new(FileProfileStore::default_path()).load_all(),
                 settings,
                 config_path,
+                profiles,
                 ..Default::default()
             }))
         }),
@@ -55,6 +59,8 @@ struct GevoApp {
     profiles: Vec<ConnectionProfile>,
     switcher: SwitcherState,
     config_path: std::path::PathBuf,
+    profiles: Vec<ConnectionProfile>,
+    last_tests: std::collections::HashMap<uuid::Uuid, LastTest>,
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
 }
@@ -63,6 +69,7 @@ impl eframe::App for GevoApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let current = self.router.current();
         let mut clicked = None;
+        let mut profiles_action = None;
         let mut settings_changed = false;
 
         let ctx = ui.ctx().clone();
@@ -113,11 +120,18 @@ impl eframe::App for GevoApp {
             |ui| {
                 if current == Route::Settings {
                     settings_changed = settings::render(&mut self.settings, ui);
+                } else if current == Route::Connections {
+                    profiles_action = profiles::render(ui, &self.profiles, &self.last_tests, false);
                 } else {
                     route::dispatch(current, ui);
                 }
             },
         );
+
+        // Edit's target profile is picked up by the edit screen once it exists.
+        if profiles_action.is_some() {
+            self.router.go_to(Route::ConnectionEdit);
+        }
 
         if let Some(route) = clicked {
             self.router.go_to(route);

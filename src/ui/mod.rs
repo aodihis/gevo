@@ -1,4 +1,5 @@
 pub mod fonts;
+pub mod profiles;
 pub mod route;
 pub mod settings;
 pub mod shell;
