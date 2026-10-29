@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::sync::Arc;
 
 use url::Url;
@@ -44,6 +43,14 @@ pub trait ClientFactory {
     type Client: TypesenseClient;
 
     fn build(&self, url: &str, api_key: &str) -> Result<Self::Client, GevoError>;
+
+    /// Like `build`, but reaches the profile's host through a local forward on `local_port`.
+    fn build_via_tunnel(
+        &self,
+        url: &str,
+        api_key: &str,
+        local_port: u16,
+    ) -> Result<Self::Client, GevoError>;
 }
 
 pub struct SdkClientFactory;
@@ -53,6 +60,15 @@ impl ClientFactory for SdkClientFactory {
 
     fn build(&self, url: &str, api_key: &str) -> Result<Self::Client, GevoError> {
         SdkTypesenseClient::new(url, api_key)
+    }
+
+    fn build_via_tunnel(
+        &self,
+        url: &str,
+        api_key: &str,
+        local_port: u16,
+    ) -> Result<Self::Client, GevoError> {
+        SdkTypesenseClient::new_via_tunnel(url, api_key, local_port)
     }
 }
 
@@ -83,12 +99,13 @@ where
     ) -> ConnectionTestReport {
         // Held until the test ends so the forward stays open.
         let mut _tunnel_guard = None;
-        let (tunnel, base_url) = match &profile.ssh {
-            None => (StepStatus::Skipped, Cow::Borrowed(profile.url.as_str())),
+        let (tunnel, local_port) = match &profile.ssh {
+            None => (StepStatus::Skipped, None),
             Some(ssh) => match self.open_tunnel(ssh, &profile.url, ssh_secret).await {
-                Ok((handle, local_url)) => {
+                Ok(handle) => {
+                    let port = handle.local_port();
                     _tunnel_guard = Some(handle);
-                    (StepStatus::Ok, Cow::Owned(local_url))
+                    (StepStatus::Ok, Some(port))
                 }
                 Err(e) => {
                     return ConnectionTestReport {
@@ -105,7 +122,11 @@ where
             health: StepStatus::NotRun,
             auth: StepStatus::NotRun,
         };
-        let client = match self.clients.build(&base_url, api_key) {
+        let built = match local_port {
+            None => self.clients.build(&profile.url, api_key),
+            Some(port) => self.clients.build_via_tunnel(&profile.url, api_key, port),
+        };
+        let client = match built {
             Ok(c) => c,
             Err(e) => {
                 report.health = StepStatus::Failed(e);
@@ -129,13 +150,13 @@ where
         report
     }
 
-    /// Returns the open forward and the local base URL, keeping the profile URL's scheme.
+    /// Opens a forward to the profile URL's host and port.
     async fn open_tunnel(
         &self,
         ssh: &SshConfig,
         profile_url: &str,
         ssh_secret: Option<&Zeroizing<String>>,
-    ) -> Result<(TunnelHandle, String), GevoError> {
+    ) -> Result<TunnelHandle, GevoError> {
         let url = Url::parse(profile_url)
             .map_err(|e| GevoError::Tunnel(format!("invalid profile URL: {e}")))?;
         let (Some(host), Some(port)) = (url.host_str(), url.port_or_known_default()) else {
@@ -156,8 +177,7 @@ where
         })
         .await
         .map_err(|e| GevoError::Tunnel(format!("tunnel task failed: {e}")))??;
-        let local_url = format!("{}://127.0.0.1:{}", url.scheme(), handle.local_port());
-        Ok((handle, local_url))
+        Ok(handle)
     }
 }
 
@@ -206,6 +226,23 @@ mod tests {
         c
     }
 
+    fn tunnel_factory_returning(
+        client: MockTypesenseClient,
+        expect_url: &'static str,
+        expect_port: u16,
+    ) -> MockClientFactory {
+        let mut f = MockClientFactory::new();
+        f.expect_build().never();
+        let mut client = Some(client);
+        f.expect_build_via_tunnel()
+            .withf(move |url, k, port| {
+                url == expect_url && k == "admin-key" && *port == expect_port
+            })
+            .times(1)
+            .returning(move |_, _, _| Ok(client.take().unwrap()));
+        f
+    }
+
     fn factory_returning(
         client: MockTypesenseClient,
         expect_url: &'static str,
@@ -242,7 +279,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ssh_opens_tunnel_to_url_host_and_tests_local_address() {
+    async fn ssh_opens_tunnel_to_url_host_and_builds_client_via_tunnel() {
         let mut tunnel = MockSshTunnel::new();
         tunnel
             .expect_open()
@@ -255,7 +292,7 @@ mod tests {
             .returning(|_| Ok(TunnelHandle::new(54321, Box::new(()))));
         let svc = ConnectionService::new(
             tunnel,
-            factory_returning(healthy_client(), "http://127.0.0.1:54321"),
+            tunnel_factory_returning(healthy_client(), "http://10.0.0.5:8108", 54321),
         );
         let pw = Zeroizing::new("pw".to_string());
 
@@ -276,7 +313,7 @@ mod tests {
             .returning(|_| Ok(TunnelHandle::new(1000, Box::new(()))));
         let svc = ConnectionService::new(
             tunnel,
-            factory_returning(healthy_client(), "https://127.0.0.1:1000"),
+            tunnel_factory_returning(healthy_client(), "https://ts.example.com", 1000),
         );
 
         assert!(svc.test(&p, &key(), None).await.succeeded());
@@ -303,6 +340,27 @@ mod tests {
             }
         );
         assert!(!report.succeeded());
+    }
+
+    #[tokio::test]
+    async fn tunnel_build_failure_is_reported_on_health_step() {
+        let mut tunnel = MockSshTunnel::new();
+        tunnel
+            .expect_open()
+            .returning(|_| Ok(TunnelHandle::new(7, Box::new(()))));
+        let mut factory = MockClientFactory::new();
+        factory
+            .expect_build_via_tunnel()
+            .returning(|_, _, _| Err(GevoError::Api(TypesenseMsg("bad tunnel url".into()))));
+        let svc = ConnectionService::new(tunnel, factory);
+
+        let report = svc.test(&ssh_profile(), &key(), None).await;
+
+        assert_eq!(report.tunnel, StepStatus::Ok);
+        assert_eq!(
+            report.health,
+            StepStatus::Failed(GevoError::Api(TypesenseMsg("bad tunnel url".into())))
+        );
     }
 
     #[tokio::test]
@@ -417,7 +475,10 @@ mod tests {
             Ok(true)
         });
         client.expect_check_auth().returning(|| Ok(()));
-        let svc = ConnectionService::new(tunnel, factory_returning(client, "http://127.0.0.1:1"));
+        let svc = ConnectionService::new(
+            tunnel,
+            tunnel_factory_returning(client, "http://10.0.0.5:8108", 1),
+        );
 
         svc.test(&ssh_profile(), &key(), None).await;
 
