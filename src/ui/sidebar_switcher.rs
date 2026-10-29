@@ -13,7 +13,7 @@ use crate::domain::credential_store::KeyringCredentialStore;
 use crate::domain::error::GevoError;
 use crate::domain::profile::ConnectionProfile;
 use crate::domain::russh_tunnel::RusshTunnel;
-use crate::ui::profile_edit::RejectUnknownHostKey;
+use crate::domain::ssh_tunnel::HostKeyPrompt;
 use crate::ui::profile_form::{FieldError, ProfileForm, run_test};
 use crate::ui::profiles::LastTest;
 
@@ -138,13 +138,15 @@ fn outcome(result: Result<ConnectionTestReport, Vec<FieldError>>) -> LastTest {
 }
 
 /// Runs the same service path as the connection edit screen on a worker thread.
-fn spawn_test(profile: ConnectionProfile, tx: Sender<LastTest>, ctx: egui::Context) {
+fn spawn_test(
+    profile: ConnectionProfile,
+    tx: Sender<LastTest>,
+    ctx: egui::Context,
+    prompt: Arc<dyn HostKeyPrompt>,
+) {
     std::thread::spawn(move || {
         let form = ProfileForm::load(&profile, &KeyringCredentialStore::new());
-        let service = ConnectionService::new(
-            RusshTunnel::new(Arc::new(RejectUnknownHostKey)),
-            SdkClientFactory,
-        );
+        let service = ConnectionService::new(RusshTunnel::new(prompt), SdkClientFactory);
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -165,6 +167,7 @@ pub fn render(
     ui: &mut egui::Ui,
     state: &mut SwitcherState,
     profiles: &[ConnectionProfile],
+    prompt: &Arc<dyn HostKeyPrompt>,
 ) -> Option<SwitcherAction> {
     if state.poll() {
         ui.ctx()
@@ -211,7 +214,7 @@ pub fn render(
                 {
                     state.select(p.id);
                     if let Some(tx) = state.begin_test(p.id) {
-                        spawn_test(p.clone(), tx, ui.ctx().clone());
+                        spawn_test(p.clone(), tx, ui.ctx().clone(), Arc::clone(prompt));
                     }
                     action = Some(SwitcherAction::Selected(p.id));
                 }
