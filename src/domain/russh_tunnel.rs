@@ -50,7 +50,9 @@ fn verify_host_key(
         )));
     }
     learn_known_hosts_path(host, port, key, known_hosts)
-        .map_err(|err| tunnel_err("cannot record SSH host key", err))
+        .map_err(|err| tunnel_err("cannot record SSH host key", err))?;
+    tracing::info!(host, port, %fingerprint, "trusted new SSH host key");
+    Ok(())
 }
 
 fn known_hosts_path() -> Result<PathBuf, GevoError> {

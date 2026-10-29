@@ -2,7 +2,11 @@ use eframe::egui;
 use gevo::APP_NAME;
 use gevo::domain::profile::ConnectionProfile;
 use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
+use gevo::domain::ssh_tunnel::HostKeyPrompt;
 use gevo::state::{Route, Router, Settings};
+use gevo::ui::host_key_dialog::{
+    HostKeyInbox, PROMPT_TIMEOUT, host_key_channel, show as show_host_key_dialog,
+};
 use gevo::ui::profile_edit::{self, Outcome};
 use gevo::ui::profiles;
 use gevo::ui::route;
@@ -42,17 +46,23 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             gevo::ui::fonts::install_fonts(&cc.egui_ctx);
+            let (prompt, host_keys) = host_key_channel(PROMPT_TIMEOUT);
             Ok(Box::new(GevoApp {
                 settings,
                 config_path,
                 profiles,
-                ..Default::default()
+                host_key_prompt: std::sync::Arc::new(prompt),
+                host_keys,
+                router: Router::default(),
+                switcher: Default::default(),
+                applied_preference: None,
+                applied_visuals: None,
+                profile_edit: None,
             }))
         }),
     )
 }
 
-#[derive(Default)]
 struct GevoApp {
     router: Router,
     settings: Settings,
@@ -63,6 +73,8 @@ struct GevoApp {
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
     profile_edit: Option<profile_edit::ProfileEditScreen>,
+    host_key_prompt: std::sync::Arc<dyn HostKeyPrompt>,
+    host_keys: HostKeyInbox,
 }
 
 impl eframe::App for GevoApp {
@@ -97,9 +109,12 @@ impl eframe::App for GevoApp {
             |ui| {
                 ui.heading(APP_NAME);
                 ui.separator();
-                if let Some(SwitcherAction::ManageConnections) =
-                    sidebar_switcher::render(ui, &mut self.switcher.borrow_mut(), &self.profiles)
-                {
+                if let Some(SwitcherAction::ManageConnections) = sidebar_switcher::render(
+                    ui,
+                    &mut self.switcher.borrow_mut(),
+                    &self.profiles,
+                    &self.host_key_prompt,
+                ) {
                     clicked = Some(Route::Connections);
                 }
                 ui.separator();
@@ -126,9 +141,9 @@ impl eframe::App for GevoApp {
                         false,
                     );
                 } else if current == Route::ConnectionEdit {
-                    let screen = self
-                        .profile_edit
-                        .get_or_insert_with(|| profile_edit::ProfileEditScreen::new(None));
+                    let screen = self.profile_edit.get_or_insert_with(|| {
+                        profile_edit::ProfileEditScreen::new(None, self.host_key_prompt.clone())
+                    });
                     let outcome = screen.render(ui);
                     if !matches!(outcome, Outcome::None) {
                         self.profile_edit = None;
@@ -140,6 +155,8 @@ impl eframe::App for GevoApp {
                 }
             },
         );
+
+        show_host_key_dialog(&ctx, &mut self.host_keys);
 
         // Edit's target profile is picked up by the edit screen once it exists.
         if profiles_action.is_some() {

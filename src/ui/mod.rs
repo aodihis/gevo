@@ -1,4 +1,5 @@
 pub mod fonts;
+pub mod host_key_dialog;
 pub mod profile_edit;
 pub mod profile_form;
 pub mod profiles;

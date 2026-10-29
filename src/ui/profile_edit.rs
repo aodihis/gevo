@@ -24,15 +24,6 @@ pub enum Outcome {
     Saved,
 }
 
-/// Unknown SSH host keys are refused until a trust-on-first-use dialog exists.
-pub(crate) struct RejectUnknownHostKey;
-
-impl HostKeyPrompt for RejectUnknownHostKey {
-    fn confirm(&self, _host: &str, _port: u16, _key_type: &str, _fingerprint: &str) -> bool {
-        false
-    }
-}
-
 /// State of the connection edit screen. Render glue — exempt from unit tests per `AGENTS.md`
 /// §6; the logic lives in `profile_form`.
 pub struct ProfileEditScreen {
@@ -43,10 +34,11 @@ pub struct ProfileEditScreen {
     pending: Option<Receiver<ConnectionTestReport>>,
     store: FileProfileStore,
     creds: KeyringCredentialStore,
+    prompt: Arc<dyn HostKeyPrompt>,
 }
 
 impl ProfileEditScreen {
-    pub fn new(existing: Option<&ConnectionProfile>) -> Self {
+    pub fn new(existing: Option<&ConnectionProfile>, prompt: Arc<dyn HostKeyPrompt>) -> Self {
         let creds = KeyringCredentialStore::new();
         let form = match existing {
             Some(profile) => ProfileForm::load(profile, &creds),
@@ -60,6 +52,7 @@ impl ProfileEditScreen {
             pending: None,
             store: FileProfileStore::new(FileProfileStore::default_path()),
             creds,
+            prompt,
         }
     }
 
@@ -206,11 +199,9 @@ impl ProfileEditScreen {
         // The form is read-only during the test, so a snapshot of the secrets is enough.
         let form = self.form.clone();
         let ctx = ctx.clone();
+        let prompt = Arc::clone(&self.prompt);
         std::thread::spawn(move || {
-            let service = ConnectionService::new(
-                RusshTunnel::new(Arc::new(RejectUnknownHostKey)),
-                SdkClientFactory,
-            );
+            let service = ConnectionService::new(RusshTunnel::new(prompt), SdkClientFactory);
             let runtime = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
