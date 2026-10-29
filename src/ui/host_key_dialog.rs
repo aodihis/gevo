@@ -1,4 +1,6 @@
 use std::collections::VecDeque;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
@@ -16,6 +18,7 @@ pub struct HostKeyRequest {
     pub key_type: String,
     pub fingerprint: String,
     reply: Sender<bool>,
+    abandoned: Arc<AtomicBool>,
 }
 
 impl HostKeyRequest {
@@ -33,14 +36,22 @@ pub struct ChannelHostKeyPrompt {
 impl HostKeyPrompt for ChannelHostKeyPrompt {
     fn confirm(&self, host: &str, port: u16, key_type: &str, fingerprint_sha256: &str) -> bool {
         let (reply, answer) = channel();
+        let abandoned = Arc::new(AtomicBool::new(false));
         let request = HostKeyRequest {
             host: host.to_owned(),
             port,
             key_type: key_type.to_owned(),
             fingerprint: fingerprint_sha256.to_owned(),
             reply,
+            abandoned: Arc::clone(&abandoned),
         };
-        self.requests.send(request).is_ok() && answer.recv_timeout(self.timeout).unwrap_or(false)
+        if self.requests.send(request).is_err() {
+            return false;
+        }
+        let trusted = answer.recv_timeout(self.timeout).unwrap_or(false);
+        // Lets the inbox discard a request nobody is waiting on any more.
+        abandoned.store(true, Ordering::Release);
+        trusted
     }
 }
 
@@ -64,12 +75,18 @@ pub fn host_key_channel(timeout: Duration) -> (ChannelHostKeyPrompt, HostKeyInbo
 impl HostKeyInbox {
     /// Collects new requests and returns the one to show, if any.
     pub fn current(&mut self) -> Option<&HostKeyRequest> {
-        self.queue.extend(self.incoming.try_iter());
+        self.sync();
         self.queue.front()
+    }
+
+    fn sync(&mut self) {
+        self.queue.extend(self.incoming.try_iter());
+        self.queue.retain(|r| !r.abandoned.load(Ordering::Acquire));
     }
 
     /// Answers the request being shown; no-op when none is pending.
     pub fn resolve(&mut self, trust: bool) {
+        self.sync();
         if let Some(request) = self.queue.pop_front() {
             request.answer(trust);
         }
@@ -159,6 +176,21 @@ mod tests {
     fn unanswered_request_times_out_to_false() {
         let (prompt, _inbox) = host_key_channel(MS);
         assert!(!prompt.confirm("h", 22, "k", "f"));
+    }
+
+    #[test]
+    fn timed_out_request_is_not_shown() {
+        let (prompt, mut inbox) = host_key_channel(MS);
+        assert!(!prompt.confirm("h", 22, "k", "f"));
+        assert!(inbox.current().is_none());
+    }
+
+    #[test]
+    fn answering_an_abandoned_request_does_not_panic() {
+        let (prompt, mut inbox) = host_key_channel(MS);
+        assert!(!prompt.confirm("h", 22, "k", "f"));
+        inbox.resolve(true);
+        assert!(inbox.current().is_none());
     }
 
     #[test]
