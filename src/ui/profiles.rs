@@ -17,7 +17,8 @@ pub enum LastTest {
 impl LastTest {
     /// The first failed step decides; a report without failures counts as passed.
     pub fn from_report(report: &ConnectionTestReport) -> Self {
-        [&report.tunnel, &report.health, &report.auth]
+        report
+            .steps()
             .into_iter()
             .find_map(|step| match step {
                 StepStatus::Failed(err) => Some(LastTest::Failed(err.clone())),
@@ -221,8 +222,10 @@ pub fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::connection_service::TunnelSteps;
     use crate::domain::error::TypesenseMsg;
     use crate::domain::profile::{SshAuthMethod, SshConfig};
+    use crate::domain::ssh_tunnel::{TunnelFailure, TunnelStage};
 
     fn ssh_profile(name: &str, host: &str) -> ConnectionProfile {
         let mut p = ConnectionProfile::new(name, "http://10.0.0.1:8108");
@@ -236,7 +239,7 @@ mod tests {
         p
     }
 
-    fn report(tunnel: StepStatus, health: StepStatus, auth: StepStatus) -> ConnectionTestReport {
+    fn report(tunnel: TunnelSteps, health: StepStatus, auth: StepStatus) -> ConnectionTestReport {
         ConnectionTestReport {
             tunnel,
             health,
@@ -246,7 +249,7 @@ mod tests {
 
     #[test]
     fn from_report_passes_when_all_steps_ok_or_skipped() {
-        let r = report(StepStatus::Skipped, StepStatus::Ok, StepStatus::Ok);
+        let r = report(TunnelSteps::skipped(), StepStatus::Ok, StepStatus::Ok);
         assert_eq!(LastTest::from_report(&r), LastTest::Passed);
     }
 
@@ -254,7 +257,7 @@ mod tests {
     fn from_report_uses_the_first_failed_step() {
         let tunnel = GevoError::Tunnel("ssh down".into());
         let r = report(
-            StepStatus::Failed(tunnel.clone()),
+            TunnelSteps::failed(TunnelFailure::new(TunnelStage::Auth, tunnel.clone())),
             StepStatus::NotRun,
             StepStatus::NotRun,
         );
@@ -262,7 +265,7 @@ mod tests {
 
         let auth = GevoError::Auth("bad key".into());
         let r = report(
-            StepStatus::Ok,
+            TunnelSteps::ok(),
             StepStatus::Ok,
             StepStatus::Failed(auth.clone()),
         );
