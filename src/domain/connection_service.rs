@@ -164,6 +164,7 @@ where
                 "profile URL needs a host and port to tunnel to".to_string(),
             ));
         };
+        let host = host.trim_matches(|c| c == '[' || c == ']');
         // spawn_blocking needs 'static, so the request inputs are owned copies.
         let (ssh, host, secret) = (ssh.clone(), host.to_owned(), ssh_secret.cloned());
         let tunnel = Arc::clone(&self.tunnel);
@@ -300,6 +301,26 @@ mod tests {
 
         assert_eq!(report.tunnel, StepStatus::Ok);
         assert!(report.succeeded());
+    }
+
+    #[tokio::test]
+    async fn ssh_strips_brackets_from_ipv6_url_host() {
+        let mut tunnel = MockSshTunnel::new();
+        tunnel
+            .expect_open()
+            .withf(|req| req.remote_host == "::1" && req.remote_port == 8108)
+            .times(1)
+            .returning(|_| Ok(TunnelHandle::new(54321, Box::new(()))));
+        let svc = ConnectionService::new(
+            tunnel,
+            tunnel_factory_returning(healthy_client(), "http://[::1]:8108", 54321),
+        );
+        let mut profile = ConnectionProfile::new("Prod", "http://[::1]:8108");
+        profile.ssh = ssh_profile().ssh;
+
+        let report = svc.test(&profile, &key(), None).await;
+
+        assert_eq!(report.tunnel, StepStatus::Ok);
     }
 
     #[tokio::test]
