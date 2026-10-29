@@ -1,4 +1,7 @@
 use std::fmt;
+use std::net::{Ipv4Addr, SocketAddr};
+
+use url::{Host, Url};
 
 use typesense::error::ApiError;
 use typesense::models::ApiStatsResponse;
@@ -35,6 +38,41 @@ impl SdkTypesenseClient {
             .map_err(|e| GevoError::Api(TypesenseMsg(e.to_string())))?;
         Ok(Self { client })
     }
+
+    /// Connects to `127.0.0.1:local_port` while keeping the URL's hostname for SNI and certificate checks.
+    pub fn new_via_tunnel(url: &str, api_key: &str, local_port: u16) -> Result<Self, GevoError> {
+        let (url, resolve_host) = tunnel_endpoint(url, local_port)?;
+        let mut node = NodeConfig::new(url);
+        if let Some(host) = resolve_host {
+            let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, local_port));
+            node = node.http_builder(move |b| b.resolve(&host, addr));
+        }
+        let client = Client::builder()
+            .nodes(vec![node])
+            .api_key(api_key)
+            .build()
+            .map_err(|e| GevoError::Api(TypesenseMsg(e.to_string())))?;
+        Ok(Self { client })
+    }
+}
+
+/// Rewrites the URL's port to the tunnel's; a hostname is kept and returned so DNS can be pinned to
+/// loopback (reqwest always uses the URL port), while an IP host is replaced by loopback.
+fn tunnel_endpoint(url: &str, local_port: u16) -> Result<(String, Option<String>), GevoError> {
+    let mut url =
+        Url::parse(url).map_err(|e| GevoError::Tunnel(format!("invalid profile URL: {e}")))?;
+    let domain = match url.host() {
+        Some(Host::Domain(d)) => Some(d.to_owned()),
+        Some(_) => None,
+        None => return Err(GevoError::Tunnel("profile URL needs a host".to_string())),
+    };
+    if domain.is_none() {
+        url.set_host(Some("127.0.0.1"))
+            .map_err(|e| GevoError::Tunnel(e.to_string()))?;
+    }
+    url.set_port(Some(local_port))
+        .map_err(|()| GevoError::Tunnel("profile URL cannot carry a port".to_string()))?;
+    Ok((url.as_str().trim_end_matches('/').to_owned(), domain))
 }
 
 impl fmt::Debug for SdkTypesenseClient {
@@ -187,6 +225,40 @@ mod tests {
     #[test]
     fn new_accepts_valid_config() {
         assert!(SdkTypesenseClient::new("http://localhost:8108", "key").is_ok());
+    }
+
+    #[test]
+    fn tunnel_endpoint_keeps_hostname_and_swaps_port() {
+        let (url, host) = tunnel_endpoint("https://ts.example.com:8443", 5000).unwrap();
+        assert_eq!(url, "https://ts.example.com:5000");
+        assert_eq!(host.as_deref(), Some("ts.example.com"));
+    }
+
+    #[test]
+    fn tunnel_endpoint_adds_port_when_url_has_none() {
+        let (url, host) = tunnel_endpoint("https://ts.example.com", 5000).unwrap();
+        assert_eq!(url, "https://ts.example.com:5000");
+        assert_eq!(host.as_deref(), Some("ts.example.com"));
+    }
+
+    #[test]
+    fn tunnel_endpoint_points_ip_hosts_at_loopback() {
+        let (url, host) = tunnel_endpoint("http://10.0.0.5:8108", 5000).unwrap();
+        assert_eq!(url, "http://127.0.0.1:5000");
+        assert_eq!(host, None);
+    }
+
+    #[test]
+    fn tunnel_endpoint_rejects_invalid_url() {
+        assert_eq!(
+            tunnel_endpoint("not a url", 5000).unwrap_err().category(),
+            "TUNNEL"
+        );
+    }
+
+    #[test]
+    fn new_via_tunnel_accepts_valid_config() {
+        assert!(SdkTypesenseClient::new_via_tunnel("https://ts.example.com", "key", 5000).is_ok());
     }
 
     #[test]

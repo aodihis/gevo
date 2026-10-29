@@ -1,3 +1,4 @@
+pub mod connection_service;
 pub mod credential_store;
 pub mod error;
 pub mod profile;
