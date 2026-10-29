@@ -4,10 +4,10 @@ use gevo::domain::profile::ConnectionProfile;
 use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::state::{Route, Router, Settings};
 use gevo::ui::profile_edit::{self, Outcome};
-use gevo::ui::profiles::{self, LastTest};
+use gevo::ui::profiles;
 use gevo::ui::route;
 use gevo::ui::settings;
-use gevo::ui::sidebar_switcher::{self, DotState, SwitcherAction, SwitcherState};
+use gevo::ui::sidebar_switcher::{self, SwitcherAction, SwitcherState};
 use gevo::ui::theme::{self, build_visuals, sidebar_bg};
 use gevo::utils::config;
 use gevo::utils::logging::{LogConfig, init_logging};
@@ -57,9 +57,9 @@ struct GevoApp {
     router: Router,
     settings: Settings,
     profiles: Vec<ConnectionProfile>,
-    switcher: SwitcherState,
+    // RefCell: the sidebar and central closures run in turn but are both alive at once.
+    switcher: std::cell::RefCell<SwitcherState>,
     config_path: std::path::PathBuf,
-    last_tests: std::collections::HashMap<uuid::Uuid, LastTest>,
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
     profile_edit: Option<profile_edit::ProfileEditScreen>,
@@ -97,13 +97,9 @@ impl eframe::App for GevoApp {
             |ui| {
                 ui.heading(APP_NAME);
                 ui.separator();
-                // Dot stays idle until connection activation (later phase) produces a report.
-                if let Some(SwitcherAction::ManageConnections) = sidebar_switcher::render(
-                    ui,
-                    &mut self.switcher,
-                    &self.profiles,
-                    DotState::from_report(None),
-                ) {
+                if let Some(SwitcherAction::ManageConnections) =
+                    sidebar_switcher::render(ui, &mut self.switcher.borrow_mut(), &self.profiles)
+                {
                     clicked = Some(Route::Connections);
                 }
                 ui.separator();
@@ -123,7 +119,12 @@ impl eframe::App for GevoApp {
                 if current == Route::Settings {
                     settings_changed = settings::render(&mut self.settings, ui);
                 } else if current == Route::Connections {
-                    profiles_action = profiles::render(ui, &self.profiles, &self.last_tests, false);
+                    profiles_action = profiles::render(
+                        ui,
+                        &self.profiles,
+                        &self.switcher.borrow().results,
+                        false,
+                    );
                 } else if current == Route::ConnectionEdit {
                     let screen = self
                         .profile_edit

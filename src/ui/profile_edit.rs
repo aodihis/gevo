@@ -25,7 +25,7 @@ pub enum Outcome {
 }
 
 /// Unknown SSH host keys are refused until a trust-on-first-use dialog exists.
-struct RejectUnknownHostKey;
+pub(crate) struct RejectUnknownHostKey;
 
 impl HostKeyPrompt for RejectUnknownHostKey {
     fn confirm(&self, _host: &str, _port: u16, _key_type: &str, _fingerprint: &str) -> bool {
