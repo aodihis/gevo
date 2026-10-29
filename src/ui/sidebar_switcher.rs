@@ -231,12 +231,12 @@ pub fn render(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::connection_service::StepStatus;
+    use crate::domain::connection_service::{StepStatus, TunnelSteps};
     use crate::ui::profile_form::Field;
 
     fn report(health: StepStatus) -> ConnectionTestReport {
         ConnectionTestReport {
-            tunnel: StepStatus::Skipped,
+            tunnel: TunnelSteps::skipped(),
             health,
             auth: StepStatus::Ok,
         }

@@ -404,26 +404,14 @@ pub enum TestProgress {
     Done(ConnectionTestReport),
 }
 
-/// One row state per `WizardStep::ALL`. The service reports tunnel setup as a single step, so
-/// a tunnel failure is shown on the first SSH row and the rest of the wizard as not run.
+/// One row state per `WizardStep::ALL`.
 pub fn wizard_rows(progress: &TestProgress) -> [RowState; 5] {
     let report = match progress {
         TestProgress::Idle => return std::array::from_fn(|_| RowState::Pending),
         TestProgress::Running => return std::array::from_fn(|_| RowState::Running),
         TestProgress::Done(report) => report,
     };
-    let tunnel_rows = match &report.tunnel {
-        StepStatus::Ok => [RowState::Ok, RowState::Ok, RowState::Ok],
-        StepStatus::Skipped => [RowState::Skipped, RowState::Skipped, RowState::Skipped],
-        StepStatus::NotRun => [RowState::NotRun, RowState::NotRun, RowState::NotRun],
-        StepStatus::Failed(e) => [
-            RowState::Failed(e.clone()),
-            RowState::NotRun,
-            RowState::NotRun,
-        ],
-    };
-    let [host, auth, forward] = tunnel_rows;
-    [host, auth, forward, row(&report.health), row(&report.auth)]
+    report.steps().map(row)
 }
 
 fn row(status: &StepStatus) -> RowState {
@@ -441,7 +429,9 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+    use crate::domain::connection_service::TunnelSteps;
     use crate::domain::error::TypesenseMsg;
+    use crate::domain::ssh_tunnel::{TunnelFailure, TunnelStage};
 
     #[derive(Default)]
     struct FakeCreds {
@@ -832,7 +822,7 @@ mod tests {
         assert!(!f.ssh_enabled);
     }
 
-    fn report(tunnel: StepStatus, health: StepStatus, auth: StepStatus) -> TestProgress {
+    fn report(tunnel: TunnelSteps, health: StepStatus, auth: StepStatus) -> TestProgress {
         TestProgress::Done(ConnectionTestReport {
             tunnel,
             health,
@@ -856,13 +846,17 @@ mod tests {
 
     #[test]
     fn successful_ssh_report_is_all_ok() {
-        let rows = wizard_rows(&report(StepStatus::Ok, StepStatus::Ok, StepStatus::Ok));
+        let rows = wizard_rows(&report(TunnelSteps::ok(), StepStatus::Ok, StepStatus::Ok));
         assert!(rows.iter().all(|r| *r == RowState::Ok));
     }
 
     #[test]
     fn report_without_ssh_skips_the_three_ssh_rows() {
-        let rows = wizard_rows(&report(StepStatus::Skipped, StepStatus::Ok, StepStatus::Ok));
+        let rows = wizard_rows(&report(
+            TunnelSteps::skipped(),
+            StepStatus::Ok,
+            StepStatus::Ok,
+        ));
         assert_eq!(
             rows[..3],
             [RowState::Skipped, RowState::Skipped, RowState::Skipped]
@@ -871,10 +865,10 @@ mod tests {
     }
 
     #[test]
-    fn tunnel_failure_marks_first_row_failed_and_rest_not_run() {
-        let e = GevoError::Tunnel("auth failed".into());
+    fn host_failure_marks_first_row_failed_and_rest_not_run() {
+        let e = GevoError::Tunnel("cannot connect to SSH host: refused".into());
         let rows = wizard_rows(&report(
-            StepStatus::Failed(e.clone()),
+            TunnelSteps::failed(TunnelFailure::new(TunnelStage::Host, e.clone())),
             StepStatus::NotRun,
             StepStatus::NotRun,
         ));
@@ -883,12 +877,38 @@ mod tests {
     }
 
     #[test]
+    fn ssh_auth_failure_is_shown_on_the_second_row() {
+        let e = GevoError::Tunnel("SSH authentication rejected by the server".into());
+        let rows = wizard_rows(&report(
+            TunnelSteps::failed(TunnelFailure::new(TunnelStage::Auth, e.clone())),
+            StepStatus::NotRun,
+            StepStatus::NotRun,
+        ));
+        assert_eq!(rows[0], RowState::Ok);
+        assert_eq!(rows[1], RowState::Failed(e));
+        assert!(rows[2..].iter().all(|r| *r == RowState::NotRun));
+    }
+
+    #[test]
+    fn port_forward_failure_is_shown_on_the_third_row() {
+        let e = GevoError::Tunnel("SSH server refused the port forward: denied".into());
+        let rows = wizard_rows(&report(
+            TunnelSteps::failed(TunnelFailure::new(TunnelStage::Forward, e.clone())),
+            StepStatus::NotRun,
+            StepStatus::NotRun,
+        ));
+        assert_eq!(rows[..2], [RowState::Ok, RowState::Ok]);
+        assert_eq!(rows[2], RowState::Failed(e));
+        assert_eq!(rows[3..], [RowState::NotRun, RowState::NotRun]);
+    }
+
+    #[test]
     fn auth_failure_keeps_earlier_rows_ok_and_carries_message() {
         let e = GevoError::Api(TypesenseMsg(
             "Forbidden - a valid `x-typesense-api-key` header must be sent.".into(),
         ));
         let rows = wizard_rows(&report(
-            StepStatus::Ok,
+            TunnelSteps::ok(),
             StepStatus::Ok,
             StepStatus::Failed(e.clone()),
         ));
@@ -900,7 +920,7 @@ mod tests {
     fn health_failure_leaves_admin_key_not_run() {
         let e = GevoError::Network("refused".into());
         let rows = wizard_rows(&report(
-            StepStatus::Skipped,
+            TunnelSteps::skipped(),
             StepStatus::Failed(e.clone()),
             StepStatus::NotRun,
         ));

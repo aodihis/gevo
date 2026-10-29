@@ -14,7 +14,8 @@ use tokio::runtime::{Builder, Runtime};
 
 use crate::domain::error::GevoError;
 use crate::domain::ssh_tunnel::{
-    AuthPlan, HostKeyPrompt, SshTunnel, TunnelHandle, TunnelRequest, plan_auth,
+    AuthPlan, HostKeyPrompt, SshTunnel, TunnelFailure, TunnelHandle, TunnelRequest, TunnelStage,
+    plan_auth,
 };
 
 fn tunnel_err(context: &str, err: impl std::fmt::Display) -> GevoError {
@@ -184,13 +185,15 @@ async fn forward_connections(
     }
 }
 
+/// Connects, authenticates, then binds the local port and proves the server allows the forward.
+/// Returns the bound local port.
 async fn open_forward(
     request: &TunnelRequest<'_>,
     prompt: Arc<dyn HostKeyPrompt>,
     known_hosts: PathBuf,
     plan: AuthPlan<'_>,
-    listener: TcpListener,
-) -> Result<(), GevoError> {
+) -> Result<u16, TunnelFailure> {
+    let host_err = |err| TunnelFailure::new(TunnelStage::Host, err);
     let ssh = request.ssh;
     let handler = Client {
         host: ssh.host.clone(),
@@ -205,10 +208,29 @@ async fn open_forward(
     let mut session = client::connect(config, (ssh.host.as_str(), ssh.port), handler)
         .await
         .map_err(|err| match err {
-            HandlerError::HostKey(err) => err,
-            HandlerError::Russh(other) => tunnel_err("cannot connect to SSH host", other),
+            HandlerError::HostKey(err) => host_err(err),
+            HandlerError::Russh(other) => host_err(tunnel_err("cannot connect to SSH host", other)),
         })?;
-    authenticate(&mut session, &ssh.username, plan).await?;
+    authenticate(&mut session, &ssh.username, plan)
+        .await
+        .map_err(|err| TunnelFailure::new(TunnelStage::Auth, err))?;
+
+    let forward_err = |err| TunnelFailure::new(TunnelStage::Forward, err);
+    let listener = bind_local(ssh.local_bind_port).map_err(forward_err)?;
+    let local_port = listener
+        .local_addr()
+        .map_err(|err| forward_err(tunnel_err("cannot read local port", err)))?
+        .port();
+    // Surfaces a server that forbids the forward or cannot reach the target.
+    session
+        .channel_open_direct_tcpip(
+            request.remote_host,
+            u32::from(request.remote_port),
+            "127.0.0.1",
+            0,
+        )
+        .await
+        .map_err(|err| forward_err(tunnel_err("SSH server refused the port forward", err)))?;
 
     tokio::spawn(forward_connections(
         listener,
@@ -216,7 +238,7 @@ async fn open_forward(
         Arc::from(request.remote_host),
         request.remote_port,
     ));
-    Ok(())
+    Ok(local_port)
 }
 
 /// Owns the runtime driving the forward; dropping it aborts the tasks and closes the session.
@@ -253,31 +275,26 @@ impl RusshTunnel {
 }
 
 impl SshTunnel for RusshTunnel {
-    fn open<'a>(&self, request: &TunnelRequest<'a>) -> Result<TunnelHandle, GevoError> {
-        let plan = plan_auth(request)?;
-        let known_hosts = self.known_hosts.clone().map_or_else(known_hosts_path, Ok)?;
+    fn open<'a>(&self, request: &TunnelRequest<'a>) -> Result<TunnelHandle, TunnelFailure> {
+        let host_err = |err| TunnelFailure::new(TunnelStage::Host, err);
+        let plan = plan_auth(request).map_err(|err| TunnelFailure::new(TunnelStage::Auth, err))?;
+        let known_hosts = self
+            .known_hosts
+            .clone()
+            .map_or_else(known_hosts_path, Ok)
+            .map_err(host_err)?;
         let runtime = Builder::new_multi_thread()
             .worker_threads(1)
             .enable_io()
             .enable_time()
             .build()
-            .map_err(|err| tunnel_err("cannot start tunnel runtime", err))?;
+            .map_err(|err| host_err(tunnel_err("cannot start tunnel runtime", err)))?;
 
-        // Entered so the listener registers with this runtime's reactor.
-        let enter = runtime.enter();
-        let listener = bind_local(request.ssh.local_bind_port)?;
-        let local_port = listener
-            .local_addr()
-            .map_err(|err| tunnel_err("cannot read local port", err))?
-            .port();
-        drop(enter);
-
-        runtime.block_on(open_forward(
+        let local_port = runtime.block_on(open_forward(
             request,
             Arc::clone(&self.prompt),
             known_hosts,
             plan,
-            listener,
         ))?;
         Ok(TunnelHandle::new(
             local_port,
@@ -419,11 +436,12 @@ mod tests {
             secret: None,
         };
 
-        let err = RusshTunnel::new(Arc::new(MockHostKeyPrompt::new()))
+        let failure = RusshTunnel::new(Arc::new(MockHostKeyPrompt::new()))
             .open(&request)
             .unwrap_err();
 
-        assert!(matches!(err, GevoError::Tunnel(_)));
+        assert_eq!(failure.stage, TunnelStage::Auth);
+        assert!(matches!(failure.error, GevoError::Tunnel(_)));
     }
 
     // Set GEVO_TEST_SSH_HOST / _USER / _PASSWORD; forwards to the server's own port 22.
