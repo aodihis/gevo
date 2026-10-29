@@ -1,9 +1,12 @@
 use eframe::egui;
 use gevo::APP_NAME;
+use gevo::domain::profile::ConnectionProfile;
+use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::state::{Route, Router, Settings};
 use gevo::ui::profile_edit::{self, Outcome};
 use gevo::ui::route;
 use gevo::ui::settings;
+use gevo::ui::sidebar_switcher::{self, DotState, SwitcherAction, SwitcherState};
 use gevo::ui::theme::{self, build_visuals, sidebar_bg};
 use gevo::utils::config;
 use gevo::utils::logging::{LogConfig, init_logging};
@@ -37,6 +40,7 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             gevo::ui::fonts::install_fonts(&cc.egui_ctx);
             Ok(Box::new(GevoApp {
+                profiles: FileProfileStore::new(FileProfileStore::default_path()).load_all(),
                 settings,
                 config_path,
                 ..Default::default()
@@ -49,6 +53,8 @@ fn main() -> eframe::Result {
 struct GevoApp {
     router: Router,
     settings: Settings,
+    profiles: Vec<ConnectionProfile>,
+    switcher: SwitcherState,
     config_path: std::path::PathBuf,
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
@@ -84,6 +90,16 @@ impl eframe::App for GevoApp {
             sidebar_bg(resolved),
             |ui| {
                 ui.heading(APP_NAME);
+                ui.separator();
+                // Dot stays idle until connection activation (later phase) produces a report.
+                if let Some(SwitcherAction::ManageConnections) = sidebar_switcher::render(
+                    ui,
+                    &mut self.switcher,
+                    &self.profiles,
+                    DotState::from_report(None),
+                ) {
+                    clicked = Some(Route::Connections);
+                }
                 ui.separator();
                 for nav_route in NAV_ROUTES {
                     if ui

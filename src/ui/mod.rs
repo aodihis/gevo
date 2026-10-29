@@ -4,4 +4,5 @@ pub mod profile_form;
 pub mod route;
 pub mod settings;
 pub mod shell;
+pub mod sidebar_switcher;
 pub mod theme;
