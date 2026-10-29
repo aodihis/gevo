@@ -2027,6 +2027,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "typesense",
+ "url",
  "uuid",
  "zeroize",
 ]
