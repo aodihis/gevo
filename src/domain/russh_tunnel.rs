@@ -187,6 +187,7 @@ async fn forward_connections(
 async fn open_forward(
     request: &TunnelRequest<'_>,
     prompt: Arc<dyn HostKeyPrompt>,
+    known_hosts: PathBuf,
     plan: AuthPlan<'_>,
     listener: TcpListener,
 ) -> Result<(), GevoError> {
@@ -194,7 +195,7 @@ async fn open_forward(
     let handler = Client {
         host: ssh.host.clone(),
         port: ssh.port,
-        known_hosts: known_hosts_path()?,
+        known_hosts,
         prompt,
     };
     let config = Arc::new(client::Config {
@@ -232,17 +233,29 @@ impl Drop for RuntimeGuard {
 /// `SshTunnel` backed by `russh` direct-tcpip channels.
 pub struct RusshTunnel {
     prompt: Arc<dyn HostKeyPrompt>,
+    known_hosts: Option<PathBuf>,
 }
 
 impl RusshTunnel {
     pub fn new(prompt: Arc<dyn HostKeyPrompt>) -> Self {
-        Self { prompt }
+        Self {
+            prompt,
+            known_hosts: None,
+        }
+    }
+
+    pub fn with_known_hosts(prompt: Arc<dyn HostKeyPrompt>, known_hosts: PathBuf) -> Self {
+        Self {
+            prompt,
+            known_hosts: Some(known_hosts),
+        }
     }
 }
 
 impl SshTunnel for RusshTunnel {
     fn open<'a>(&self, request: &TunnelRequest<'a>) -> Result<TunnelHandle, GevoError> {
         let plan = plan_auth(request)?;
+        let known_hosts = self.known_hosts.clone().map_or_else(known_hosts_path, Ok)?;
         let runtime = Builder::new_multi_thread()
             .worker_threads(1)
             .enable_io()
@@ -262,6 +275,7 @@ impl SshTunnel for RusshTunnel {
         runtime.block_on(open_forward(
             request,
             Arc::clone(&self.prompt),
+            known_hosts,
             plan,
             listener,
         ))?;
@@ -381,6 +395,15 @@ mod tests {
     }
 
     #[test]
+    fn with_known_hosts_overrides_the_default_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("known_hosts");
+        let tunnel =
+            RusshTunnel::with_known_hosts(Arc::new(MockHostKeyPrompt::new()), path.clone());
+        assert_eq!(tunnel.known_hosts, Some(path));
+    }
+
+    #[test]
     fn open_without_a_password_fails_before_touching_the_network() {
         let ssh = SshConfig {
             host: "127.0.0.1".into(),
@@ -404,6 +427,7 @@ mod tests {
     }
 
     // Set GEVO_TEST_SSH_HOST / _USER / _PASSWORD; forwards to the server's own port 22.
+    // Uses a temp known_hosts so the accept-all prompt never touches the real one.
     #[test]
     #[ignore = "needs a real SSH server; run manually with cargo test -- --ignored"]
     fn forwards_a_local_port_through_a_real_ssh_server() {
@@ -423,9 +447,12 @@ mod tests {
             secret: Some(&password),
         };
 
+        let dir = tempfile::tempdir().unwrap();
         let mut prompt = MockHostKeyPrompt::new();
         prompt.expect_confirm().returning(|_, _, _, _| true);
-        let handle = RusshTunnel::new(Arc::new(prompt)).open(&request).unwrap();
+        let tunnel =
+            RusshTunnel::with_known_hosts(Arc::new(prompt), dir.path().join("known_hosts"));
+        let handle = tunnel.open(&request).unwrap();
         let port = handle.local_port();
         assert!(TcpStream::connect(("127.0.0.1", port)).is_ok());
 
