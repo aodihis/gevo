@@ -10,10 +10,11 @@ use crate::domain::connection_service::{
     ConnectionService, ConnectionTestReport, SdkClientFactory,
 };
 use crate::domain::credential_store::KeyringCredentialStore;
+use crate::domain::error::GevoError;
 use crate::domain::profile::ConnectionProfile;
 use crate::domain::russh_tunnel::RusshTunnel;
 use crate::ui::profile_edit::RejectUnknownHostKey;
-use crate::ui::profile_form::{ProfileForm, run_test};
+use crate::ui::profile_form::{FieldError, ProfileForm, run_test};
 use crate::ui::profiles::LastTest;
 
 const DOT_CONNECTED: Color32 = Color32::from_rgb(0x5F, 0xC0, 0x8A);
@@ -64,7 +65,7 @@ pub struct SwitcherState {
     pub active: Option<Uuid>,
     pub open: bool,
     pub results: HashMap<Uuid, LastTest>,
-    running: HashMap<Uuid, Receiver<ConnectionTestReport>>,
+    running: HashMap<Uuid, Receiver<LastTest>>,
 }
 
 impl SwitcherState {
@@ -86,7 +87,7 @@ impl SwitcherState {
     }
 
     /// Registers a test for `id`; `None` if one is already running for it.
-    pub fn begin_test(&mut self, id: Uuid) -> Option<Sender<ConnectionTestReport>> {
+    pub fn begin_test(&mut self, id: Uuid) -> Option<Sender<LastTest>> {
         if self.is_running(id) {
             return None;
         }
@@ -100,8 +101,8 @@ impl SwitcherState {
     pub fn poll(&mut self) -> bool {
         let results = &mut self.results;
         self.running.retain(|id, rx| match rx.try_recv() {
-            Ok(report) => {
-                results.insert(*id, LastTest::from_report(&report));
+            Ok(result) => {
+                results.insert(*id, result);
                 false
             }
             Err(TryRecvError::Empty) => true,
@@ -125,8 +126,19 @@ impl SwitcherState {
     }
 }
 
+/// A form that cannot be tested (e.g. no admin key in the keychain) counts as an auth failure.
+fn outcome(result: Result<ConnectionTestReport, Vec<FieldError>>) -> LastTest {
+    match result {
+        Ok(report) => LastTest::from_report(&report),
+        Err(errors) => {
+            let messages: Vec<&str> = errors.iter().map(|e| e.message).collect();
+            LastTest::Failed(GevoError::Auth(messages.join("; ")))
+        }
+    }
+}
+
 /// Runs the same service path as the connection edit screen on a worker thread.
-fn spawn_test(profile: ConnectionProfile, tx: Sender<ConnectionTestReport>, ctx: egui::Context) {
+fn spawn_test(profile: ConnectionProfile, tx: Sender<LastTest>, ctx: egui::Context) {
     std::thread::spawn(move || {
         let form = ProfileForm::load(&profile, &KeyringCredentialStore::new());
         let service = ConnectionService::new(
@@ -137,9 +149,7 @@ fn spawn_test(profile: ConnectionProfile, tx: Sender<ConnectionTestReport>, ctx:
             .enable_all()
             .build()
             .expect("tokio runtime");
-        if let Ok(report) = runtime.block_on(run_test(&service, &form)) {
-            let _ = tx.send(report);
-        }
+        let _ = tx.send(outcome(runtime.block_on(run_test(&service, &form))));
         ctx.request_repaint();
     });
 }
@@ -222,7 +232,7 @@ pub fn render(
 mod tests {
     use super::*;
     use crate::domain::connection_service::StepStatus;
-    use crate::domain::error::GevoError;
+    use crate::ui::profile_form::Field;
 
     fn report(health: StepStatus) -> ConnectionTestReport {
         ConnectionTestReport {
@@ -343,7 +353,7 @@ mod tests {
         let id = Uuid::new_v4();
         let tx = s.begin_test(id).unwrap();
         assert!(s.poll());
-        tx.send(report(StepStatus::Ok)).unwrap();
+        tx.send(LastTest::Passed).unwrap();
         assert!(!s.poll());
         assert_eq!(s.results.get(&id), Some(&LastTest::Passed));
         assert!(!s.is_running(id));
@@ -355,9 +365,32 @@ mod tests {
         let id = Uuid::new_v4();
         let tx = s.begin_test(id).unwrap();
         let err = GevoError::Network("down".into());
-        tx.send(report(StepStatus::Failed(err.clone()))).unwrap();
+        tx.send(LastTest::Failed(err.clone())).unwrap();
         s.poll();
         assert_eq!(s.results.get(&id), Some(&LastTest::Failed(err)));
+    }
+
+    #[test]
+    fn invalid_profile_becomes_a_failed_result_with_the_messages() {
+        let errors = vec![
+            FieldError {
+                field: Field::AdminKey,
+                message: "Admin API key is required",
+            },
+            FieldError {
+                field: Field::Host,
+                message: "Host is required",
+            },
+        ];
+        let expected = LastTest::Failed(GevoError::Auth(
+            "Admin API key is required; Host is required".into(),
+        ));
+        assert_eq!(outcome(Err(errors)), expected);
+    }
+
+    #[test]
+    fn report_outcome_follows_the_report() {
+        assert_eq!(outcome(Ok(report(StepStatus::Ok))), LastTest::Passed);
     }
 
     #[test]
