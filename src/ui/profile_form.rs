@@ -334,6 +334,30 @@ where
         .await)
 }
 
+/// Folds a save result into the screen's error state; true when the save succeeded.
+pub fn record_save(
+    result: Result<ConnectionProfile, SaveError>,
+    errors: &mut Vec<FieldError>,
+    save_error: &mut Option<String>,
+) -> bool {
+    *save_error = None;
+    match result {
+        Ok(profile) => {
+            tracing::info!(profile = %profile.name, "profile saved");
+            true
+        }
+        Err(SaveError::Invalid(found)) => {
+            *errors = found;
+            false
+        }
+        Err(err) => {
+            tracing::error!(category = "AUTH", %err, "failed to save profile");
+            *save_error = Some(err.to_string());
+            false
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WizardStep {
     SshHost,
@@ -534,6 +558,29 @@ mod tests {
         let service = ConnectionService::new(MockSshTunnel::new(), MockClientFactory::new());
         let errors = run_test(&service, &ProfileForm::blank()).await.unwrap_err();
         assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn record_save_clears_a_stale_save_error_on_the_next_attempt() {
+        let mut errors = Vec::new();
+        let mut save_error = None;
+        let io = SaveError::Store(std::io::Error::other("disk full"));
+        assert!(!record_save(Err(io), &mut errors, &mut save_error));
+        assert!(save_error.is_some());
+
+        let invalid = SaveError::Invalid(vec![FieldError {
+            field: Field::Name,
+            message: "x",
+        }]);
+        assert!(!record_save(Err(invalid), &mut errors, &mut save_error));
+        assert_eq!(save_error, None);
+        assert_eq!(errors.len(), 1);
+
+        let io = SaveError::Store(std::io::Error::other("disk full"));
+        record_save(Err(io), &mut errors, &mut save_error);
+        let ok = Ok(valid().to_profile().unwrap());
+        assert!(record_save(ok, &mut errors, &mut save_error));
+        assert_eq!(save_error, None);
     }
 
     fn fields(errors: &[FieldError]) -> Vec<Field> {

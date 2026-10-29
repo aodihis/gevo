@@ -14,7 +14,7 @@ use crate::domain::russh_tunnel::RusshTunnel;
 use crate::domain::ssh_tunnel::HostKeyPrompt;
 use crate::ui::profile_form::{
     Field, FieldError, ProfileForm, Protocol, RowState, SshAuthKind, TestProgress, WizardStep,
-    run_test, save, wizard_rows,
+    record_save, run_test, save, wizard_rows,
 };
 
 /// What the screen asks the app to do after a frame.
@@ -240,21 +240,8 @@ impl ProfileEditScreen {
     }
 
     fn try_save(&mut self) -> bool {
-        match save(&self.form, &self.store, &self.creds) {
-            Ok(profile) => {
-                tracing::info!(profile = %profile.name, "profile saved");
-                true
-            }
-            Err(crate::ui::profile_form::SaveError::Invalid(errors)) => {
-                self.errors = errors;
-                false
-            }
-            Err(err) => {
-                tracing::error!(category = "AUTH", %err, "failed to save profile");
-                self.save_error = Some(err.to_string());
-                false
-            }
-        }
+        let result = save(&self.form, &self.store, &self.creds);
+        record_save(result, &mut self.errors, &mut self.save_error)
     }
 }
 
