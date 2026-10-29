@@ -1,6 +1,7 @@
 use eframe::egui;
 use gevo::APP_NAME;
 use gevo::state::{Route, Router, Settings};
+use gevo::ui::profile_edit::{self, Outcome};
 use gevo::ui::route;
 use gevo::ui::settings;
 use gevo::ui::theme::{self, build_visuals, sidebar_bg};
@@ -51,6 +52,7 @@ struct GevoApp {
     config_path: std::path::PathBuf,
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
+    profile_edit: Option<profile_edit::ProfileEditScreen>,
 }
 
 impl eframe::App for GevoApp {
@@ -58,6 +60,7 @@ impl eframe::App for GevoApp {
         let current = self.router.current();
         let mut clicked = None;
         let mut settings_changed = false;
+        let mut leave_edit = false;
 
         let ctx = ui.ctx().clone();
         let settings = self.settings;
@@ -97,12 +100,23 @@ impl eframe::App for GevoApp {
             |ui| {
                 if current == Route::Settings {
                     settings_changed = settings::render(&mut self.settings, ui);
+                } else if current == Route::ConnectionEdit {
+                    let screen = self
+                        .profile_edit
+                        .get_or_insert_with(|| profile_edit::ProfileEditScreen::new(None));
+                    if !matches!(screen.render(ui), Outcome::None) {
+                        self.profile_edit = None;
+                        leave_edit = true;
+                    }
                 } else {
                     route::dispatch(current, ui);
                 }
             },
         );
 
+        if leave_edit {
+            clicked = Some(Route::Connections);
+        }
         if let Some(route) = clicked {
             self.router.go_to(route);
         }
