@@ -5,7 +5,9 @@ use zeroize::Zeroizing;
 
 use crate::domain::error::{GevoError, TypesenseMsg};
 use crate::domain::profile::{ConnectionProfile, SshConfig};
-use crate::domain::ssh_tunnel::{SshTunnel, TunnelHandle, TunnelRequest};
+use crate::domain::ssh_tunnel::{
+    SshTunnel, TunnelFailure, TunnelHandle, TunnelRequest, TunnelStage,
+};
 use crate::domain::typesense_client::{SdkTypesenseClient, TypesenseClient};
 
 /// Outcome of one step of a connection test.
@@ -19,16 +21,75 @@ pub enum StepStatus {
     Failed(GevoError),
 }
 
+/// SSH setup, one status per phase.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelSteps {
+    pub host: StepStatus,
+    pub auth: StepStatus,
+    pub forward: StepStatus,
+}
+
+impl TunnelSteps {
+    pub fn skipped() -> Self {
+        Self::uniform(StepStatus::Skipped)
+    }
+
+    pub fn ok() -> Self {
+        Self::uniform(StepStatus::Ok)
+    }
+
+    pub fn failed(failure: TunnelFailure) -> Self {
+        let TunnelFailure { stage, error } = failure;
+        let failed = StepStatus::Failed(error);
+        match stage {
+            TunnelStage::Host => Self {
+                host: failed,
+                auth: StepStatus::NotRun,
+                forward: StepStatus::NotRun,
+            },
+            TunnelStage::Auth => Self {
+                host: StepStatus::Ok,
+                auth: failed,
+                forward: StepStatus::NotRun,
+            },
+            TunnelStage::Forward => Self {
+                host: StepStatus::Ok,
+                auth: StepStatus::Ok,
+                forward: failed,
+            },
+        }
+    }
+
+    fn uniform(status: StepStatus) -> Self {
+        Self {
+            host: status.clone(),
+            auth: status.clone(),
+            forward: status,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectionTestReport {
-    pub tunnel: StepStatus,
+    pub tunnel: TunnelSteps,
     pub health: StepStatus,
     pub auth: StepStatus,
 }
 
 impl ConnectionTestReport {
+    /// All five steps in run order: SSH host, SSH auth, forward, health, admin key.
+    pub fn steps(&self) -> [&StepStatus; 5] {
+        [
+            &self.tunnel.host,
+            &self.tunnel.auth,
+            &self.tunnel.forward,
+            &self.health,
+            &self.auth,
+        ]
+    }
+
     pub fn succeeded(&self) -> bool {
-        [&self.tunnel, &self.health, &self.auth]
+        self.steps()
             .iter()
             .all(|s| matches!(s, StepStatus::Ok | StepStatus::Skipped))
     }
@@ -100,16 +161,16 @@ where
         // Held until the test ends so the forward stays open.
         let mut _tunnel_guard = None;
         let (tunnel, local_port) = match &profile.ssh {
-            None => (StepStatus::Skipped, None),
+            None => (TunnelSteps::skipped(), None),
             Some(ssh) => match self.open_tunnel(ssh, &profile.url, ssh_secret).await {
                 Ok(handle) => {
                     let port = handle.local_port();
                     _tunnel_guard = Some(handle);
-                    (StepStatus::Ok, Some(port))
+                    (TunnelSteps::ok(), Some(port))
                 }
-                Err(e) => {
+                Err(failure) => {
                     return ConnectionTestReport {
-                        tunnel: StepStatus::Failed(e),
+                        tunnel: TunnelSteps::failed(failure),
                         health: StepStatus::NotRun,
                         auth: StepStatus::NotRun,
                     };
@@ -156,13 +217,15 @@ where
         ssh: &SshConfig,
         profile_url: &str,
         ssh_secret: Option<&Zeroizing<String>>,
-    ) -> Result<TunnelHandle, GevoError> {
+    ) -> Result<TunnelHandle, TunnelFailure> {
+        // Nothing has connected yet, so a bad URL is reported on the first step.
+        let before_connect = |e| TunnelFailure::new(TunnelStage::Host, e);
         let url = Url::parse(profile_url)
-            .map_err(|e| GevoError::Tunnel(format!("invalid profile URL: {e}")))?;
+            .map_err(|e| before_connect(GevoError::Tunnel(format!("invalid profile URL: {e}"))))?;
         let (Some(host), Some(port)) = (url.host_str(), url.port_or_known_default()) else {
-            return Err(GevoError::Tunnel(
+            return Err(before_connect(GevoError::Tunnel(
                 "profile URL needs a host and port to tunnel to".to_string(),
-            ));
+            )));
         };
         let host = host.trim_matches(|c| c == '[' || c == ']');
         // spawn_blocking needs 'static, so the request inputs are owned copies.
@@ -177,7 +240,7 @@ where
             })
         })
         .await
-        .map_err(|e| GevoError::Tunnel(format!("tunnel task failed: {e}")))??;
+        .map_err(|e| before_connect(GevoError::Tunnel(format!("tunnel task failed: {e}"))))??;
         Ok(handle)
     }
 }
@@ -271,7 +334,7 @@ mod tests {
         assert_eq!(
             report,
             ConnectionTestReport {
-                tunnel: StepStatus::Skipped,
+                tunnel: TunnelSteps::skipped(),
                 health: StepStatus::Ok,
                 auth: StepStatus::Ok,
             }
@@ -299,7 +362,7 @@ mod tests {
 
         let report = svc.test(&ssh_profile(), &key(), Some(&pw)).await;
 
-        assert_eq!(report.tunnel, StepStatus::Ok);
+        assert_eq!(report.tunnel, TunnelSteps::ok());
         assert!(report.succeeded());
     }
 
@@ -320,7 +383,7 @@ mod tests {
 
         let report = svc.test(&profile, &key(), None).await;
 
-        assert_eq!(report.tunnel, StepStatus::Ok);
+        assert_eq!(report.tunnel, TunnelSteps::ok());
     }
 
     #[tokio::test]
@@ -343,9 +406,12 @@ mod tests {
     #[tokio::test]
     async fn tunnel_failure_stops_and_marks_later_steps_not_run() {
         let mut tunnel = MockSshTunnel::new();
-        tunnel
-            .expect_open()
-            .returning(|_| Err(GevoError::Tunnel("handshake failed".into())));
+        tunnel.expect_open().returning(|_| {
+            Err(TunnelFailure::new(
+                TunnelStage::Host,
+                GevoError::Tunnel("handshake failed".into()),
+            ))
+        });
         let mut factory = MockClientFactory::new();
         factory.expect_build().never();
         let svc = ConnectionService::new(tunnel, factory);
@@ -355,7 +421,11 @@ mod tests {
         assert_eq!(
             report,
             ConnectionTestReport {
-                tunnel: StepStatus::Failed(GevoError::Tunnel("handshake failed".into())),
+                tunnel: TunnelSteps {
+                    host: StepStatus::Failed(GevoError::Tunnel("handshake failed".into())),
+                    auth: StepStatus::NotRun,
+                    forward: StepStatus::NotRun,
+                },
                 health: StepStatus::NotRun,
                 auth: StepStatus::NotRun,
             }
@@ -377,7 +447,7 @@ mod tests {
 
         let report = svc.test(&ssh_profile(), &key(), None).await;
 
-        assert_eq!(report.tunnel, StepStatus::Ok);
+        assert_eq!(report.tunnel, TunnelSteps::ok());
         assert_eq!(
             report.health,
             StepStatus::Failed(GevoError::Api(TypesenseMsg("bad tunnel url".into())))
@@ -395,9 +465,10 @@ mod tests {
         let report = svc.test(&p, &key(), None).await;
 
         assert!(matches!(
-            report.tunnel,
+            report.tunnel.host,
             StepStatus::Failed(GevoError::Tunnel(_))
         ));
+        assert_eq!(report.tunnel.auth, StepStatus::NotRun);
         assert_eq!(report.health, StepStatus::NotRun);
     }
 
@@ -415,7 +486,7 @@ mod tests {
 
         let report = svc.test(&plain_profile(), &key(), None).await;
 
-        assert_eq!(report.tunnel, StepStatus::Skipped);
+        assert_eq!(report.tunnel, TunnelSteps::skipped());
         assert_eq!(
             report.health,
             StepStatus::Failed(GevoError::Network("connection refused".into()))
@@ -506,10 +577,70 @@ mod tests {
         assert!(dropped.load(Ordering::SeqCst));
     }
 
+    #[tokio::test]
+    async fn auth_stage_failure_keeps_host_ok_and_verbatim_message() {
+        let mut tunnel = MockSshTunnel::new();
+        tunnel.expect_open().returning(|_| {
+            Err(TunnelFailure::new(
+                TunnelStage::Auth,
+                GevoError::Tunnel("SSH authentication rejected by the server".into()),
+            ))
+        });
+        let svc = ConnectionService::new(tunnel, MockClientFactory::new());
+
+        let report = svc.test(&ssh_profile(), &key(), None).await;
+
+        assert_eq!(report.tunnel.host, StepStatus::Ok);
+        assert_eq!(
+            report.tunnel.auth,
+            StepStatus::Failed(GevoError::Tunnel(
+                "SSH authentication rejected by the server".into()
+            ))
+        );
+        assert_eq!(report.tunnel.forward, StepStatus::NotRun);
+        assert_eq!(report.health, StepStatus::NotRun);
+        assert_eq!(report.auth, StepStatus::NotRun);
+    }
+
+    #[tokio::test]
+    async fn forward_stage_failure_keeps_host_and_auth_ok() {
+        let mut tunnel = MockSshTunnel::new();
+        tunnel.expect_open().returning(|_| {
+            Err(TunnelFailure::new(
+                TunnelStage::Forward,
+                GevoError::Tunnel("administratively prohibited".into()),
+            ))
+        });
+        let svc = ConnectionService::new(tunnel, MockClientFactory::new());
+
+        let report = svc.test(&ssh_profile(), &key(), None).await;
+
+        assert_eq!(report.tunnel.host, StepStatus::Ok);
+        assert_eq!(report.tunnel.auth, StepStatus::Ok);
+        assert!(matches!(report.tunnel.forward, StepStatus::Failed(_)));
+        assert_eq!(report.health, StepStatus::NotRun);
+    }
+
+    #[test]
+    fn steps_lists_all_five_in_run_order() {
+        let report = ConnectionTestReport {
+            tunnel: TunnelSteps::failed(TunnelFailure::new(
+                TunnelStage::Auth,
+                GevoError::Tunnel("x".into()),
+            )),
+            health: StepStatus::NotRun,
+            auth: StepStatus::NotRun,
+        };
+        let steps = report.steps();
+        assert_eq!(steps[0], &StepStatus::Ok);
+        assert!(matches!(steps[1], StepStatus::Failed(_)));
+        assert!(steps[2..].iter().all(|s| **s == StepStatus::NotRun));
+    }
+
     #[test]
     fn succeeded_is_false_when_any_step_is_not_ok_or_skipped() {
         let ok = ConnectionTestReport {
-            tunnel: StepStatus::Skipped,
+            tunnel: TunnelSteps::skipped(),
             health: StepStatus::Ok,
             auth: StepStatus::Ok,
         };

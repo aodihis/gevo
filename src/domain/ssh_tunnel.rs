@@ -53,10 +53,30 @@ impl fmt::Debug for TunnelHandle {
     }
 }
 
+/// The phase of tunnel setup that failed, in the order they run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TunnelStage {
+    Host,
+    Auth,
+    Forward,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TunnelFailure {
+    pub stage: TunnelStage,
+    pub error: GevoError,
+}
+
+impl TunnelFailure {
+    pub fn new(stage: TunnelStage, error: GevoError) -> Self {
+        Self { stage, error }
+    }
+}
+
 /// Opens a local port forward through an SSH server. Blocking: call off the UI thread.
 #[cfg_attr(test, mockall::automock)]
 pub trait SshTunnel {
-    fn open<'a>(&self, request: &TunnelRequest<'a>) -> Result<TunnelHandle, GevoError>;
+    fn open<'a>(&self, request: &TunnelRequest<'a>) -> Result<TunnelHandle, TunnelFailure>;
 }
 
 /// Asks the user whether to trust a host key not yet in `known_hosts`. Blocking.
@@ -169,11 +189,16 @@ mod tests {
     #[test]
     fn mock_tunnel_can_fail_with_a_tunnel_error() {
         let mut mock = MockSshTunnel::new();
-        mock.expect_open()
-            .returning(|_| Err(GevoError::Tunnel("refused".into())));
+        mock.expect_open().returning(|_| {
+            Err(TunnelFailure::new(
+                TunnelStage::Auth,
+                GevoError::Tunnel("refused".into()),
+            ))
+        });
         let ssh = config(SshAuthMethod::Password);
-        let err = mock.open(&request(&ssh, None)).unwrap_err();
-        assert_eq!(err.category(), "TUNNEL");
+        let failure = mock.open(&request(&ssh, None)).unwrap_err();
+        assert_eq!(failure.stage, TunnelStage::Auth);
+        assert_eq!(failure.error.category(), "TUNNEL");
     }
 
     #[test]
