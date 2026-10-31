@@ -237,6 +237,18 @@ impl DocumentsScreen {
         self.is_loading() || self.deleting.is_some()
     }
 
+    /// After deletes emptied the shown page while hits remain, the query for the last real page.
+    pub fn refetch_query(&mut self) -> Option<DocumentQuery> {
+        let page = self.page()?;
+        if !page.documents.is_empty() || page.found == 0 || self.deleting.is_some() {
+            return None;
+        }
+        let last = page.page_count(self.applied.per_page);
+        self.applied.page = self.applied.page.min(last);
+        self.query.page = self.applied.page;
+        Some(self.applied.clone())
+    }
+
     fn remove_document(&mut self, id: &str) {
         if let PageState::Loaded(page) = &mut self.state {
             let before = page.documents.len();
@@ -340,6 +352,9 @@ impl DocumentsScreen {
             Some(ConfirmOutcome::Pending) | None => {}
         }
 
+        if next.is_none() {
+            next = self.refetch_query();
+        }
         if let Some(query) = next {
             self.begin_search(spawn_search(&ctx, &client, &name, query));
         }
@@ -751,6 +766,45 @@ mod tests {
         let page = screen.page().unwrap();
         assert_eq!((page.found, page.documents.len()), (1, 1));
         assert_eq!(screen.selected(), None);
+    }
+
+    #[test]
+    fn deleting_the_last_row_of_a_later_page_asks_for_the_page_before() {
+        let mut screen = loaded(&["a"], 26);
+        screen.set_per_page(25);
+        screen.go_page(1);
+        let (tx, rx) = channel();
+        screen.begin_search(rx);
+        tx.send(Ok(page_of(&["z"], 26))).unwrap();
+        screen.poll();
+        let (dtx, drx) = channel();
+        screen.begin_delete("z".into(), drx);
+        dtx.send(Ok(())).unwrap();
+        screen.poll();
+
+        let query = screen.refetch_query().expect("a refetch");
+        assert_eq!(query.page, 1);
+        assert_eq!(screen.applied().page, 1);
+    }
+
+    #[test]
+    fn no_refetch_while_the_page_still_has_rows() {
+        let mut screen = loaded(&["a", "b"], 2);
+        let (dtx, drx) = channel();
+        screen.begin_delete("a".into(), drx);
+        dtx.send(Ok(())).unwrap();
+        screen.poll();
+        assert!(screen.refetch_query().is_none());
+    }
+
+    #[test]
+    fn no_refetch_when_the_collection_is_now_empty() {
+        let mut screen = loaded(&["a"], 1);
+        let (dtx, drx) = channel();
+        screen.begin_delete("a".into(), drx);
+        dtx.send(Ok(())).unwrap();
+        screen.poll();
+        assert!(screen.refetch_query().is_none());
     }
 
     #[test]
