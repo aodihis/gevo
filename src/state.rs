@@ -35,6 +35,14 @@ impl Route {
             Route::KeyCreated => "Key Created",
         }
     }
+
+    /// Whether the screen talks to the server, so it is unavailable without an active profile.
+    pub fn needs_connection(self) -> bool {
+        !matches!(
+            self,
+            Route::Connections | Route::ConnectionEdit | Route::Settings
+        )
+    }
 }
 
 /// Holds the single currently-displayed route. The app starts on the connection
@@ -103,6 +111,25 @@ mod tests {
         titles.sort_unstable();
         titles.dedup();
         assert_eq!(titles.len(), routes.len());
+    }
+
+    #[test]
+    fn server_screens_need_a_connection_and_local_ones_do_not() {
+        for route in [
+            Route::Collections,
+            Route::SchemaEditor,
+            Route::Documents,
+            Route::Import,
+            Route::ApiKeys,
+            Route::KeyCreated,
+            Route::Health,
+            Route::ConfirmDelete,
+        ] {
+            assert!(route.needs_connection(), "{route:?}");
+        }
+        for route in [Route::Connections, Route::ConnectionEdit, Route::Settings] {
+            assert!(!route.needs_connection(), "{route:?}");
+        }
     }
 
     #[test]

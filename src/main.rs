@@ -4,6 +4,7 @@ use gevo::domain::profile::ConnectionProfile;
 use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::domain::ssh_tunnel::HostKeyPrompt;
 use gevo::state::{Route, Router, Settings};
+use gevo::ui::collections::CollectionsScreen;
 use gevo::ui::host_key_dialog::{
     HostKeyInbox, PROMPT_TIMEOUT, host_key_channel, show as show_host_key_dialog,
 };
@@ -60,6 +61,7 @@ fn main() -> eframe::Result {
                 applied_visuals: None,
                 profile_edit: None,
                 session: SessionSlot::default(),
+                collections: CollectionsScreen::default(),
             }))
         }),
     )
@@ -76,6 +78,7 @@ struct GevoApp {
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
     profile_edit: Option<profile_edit::ProfileEditScreen>,
     session: SessionSlot,
+    collections: CollectionsScreen,
     host_key_prompt: std::sync::Arc<dyn HostKeyPrompt>,
     host_keys: HostKeyInbox,
 }
@@ -89,6 +92,7 @@ impl eframe::App for GevoApp {
         let mut leave_edit = false;
         let mut profile_saved = false;
         let mut selected = None;
+        let has_active = self.switcher.borrow().active.is_some();
 
         let ctx = ui.ctx().clone();
         let settings = self.settings;
@@ -125,10 +129,13 @@ impl eframe::App for GevoApp {
                 }
                 ui.separator();
                 for nav_route in NAV_ROUTES {
-                    if ui
-                        .selectable_label(current == nav_route, nav_route.title())
-                        .clicked()
-                    {
+                    let enabled = has_active || !nav_route.needs_connection();
+                    let item = ui
+                        .add_enabled_ui(enabled, |ui| {
+                            ui.selectable_label(current == nav_route, nav_route.title())
+                        })
+                        .inner;
+                    if item.clicked() {
                         clicked = Some(nav_route);
                     }
                 }
@@ -156,6 +163,13 @@ impl eframe::App for GevoApp {
                         leave_edit = true;
                     }
                     profile_saved = matches!(outcome, Outcome::Saved);
+                } else if current == Route::Collections {
+                    let name = self
+                        .switcher
+                        .borrow()
+                        .active_profile(&self.profiles)
+                        .map_or(String::new(), |p| p.name.clone());
+                    self.collections.render(ui, &self.session, &name);
                 } else {
                     route::dispatch(current, ui);
                 }
