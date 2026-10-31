@@ -5,6 +5,7 @@ use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::domain::ssh_tunnel::HostKeyPrompt;
 use gevo::state::{Route, Router, Settings};
 use gevo::ui::collections::{CollectionsAction, CollectionsScreen};
+use gevo::ui::documents::DocumentsScreen;
 use gevo::ui::host_key_dialog::{
     HostKeyInbox, PROMPT_TIMEOUT, host_key_channel, show as show_host_key_dialog,
 };
@@ -65,6 +66,7 @@ fn main() -> eframe::Result {
                 session: SessionSlot::default(),
                 collections: CollectionsScreen::default(),
                 schema_editor: None,
+                documents: DocumentsScreen::default(),
             }))
         }),
     )
@@ -83,6 +85,7 @@ struct GevoApp {
     session: SessionSlot,
     collections: CollectionsScreen,
     schema_editor: Option<SchemaEditorScreen>,
+    documents: DocumentsScreen,
     host_key_prompt: std::sync::Arc<dyn HostKeyPrompt>,
     host_keys: HostKeyInbox,
 }
@@ -176,6 +179,8 @@ impl eframe::App for GevoApp {
                         .active_profile(&self.profiles)
                         .map_or(String::new(), |p| p.name.clone());
                     collections_action = self.collections.render(ui, &self.session, &name);
+                } else if current == Route::Documents {
+                    self.documents.render(ui, &self.session);
                 } else if current == Route::SchemaEditor {
                     if let Some(editor) = &mut self.schema_editor {
                         editor_outcome = editor.render(ui, self.session.client().as_ref());
@@ -206,6 +211,14 @@ impl eframe::App for GevoApp {
             let pending =
                 session::connect(profile.clone(), ctx.clone(), self.host_key_prompt.clone());
             self.session.begin(id, pending);
+            // Anything open belonged to the previous connection.
+            self.documents = DocumentsScreen::default();
+            if matches!(
+                self.router.current(),
+                Route::Documents | Route::SchemaEditor
+            ) {
+                clicked = Some(Route::Collections);
+            }
         }
         if self.session.poll() {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
@@ -228,6 +241,12 @@ impl eframe::App for GevoApp {
                 if let Some(c) = self.collections.find(&name) {
                     self.schema_editor = Some(SchemaEditorScreen::new(SchemaDraft::clone_of(c)));
                     clicked = Some(Route::SchemaEditor);
+                }
+            }
+            Some(CollectionsAction::Open(name)) => {
+                if let Some(c) = self.collections.find(&name) {
+                    self.documents.open(c.clone());
+                    clicked = Some(Route::Documents);
                 }
             }
             None => {}
@@ -255,7 +274,8 @@ impl eframe::App for GevoApp {
 
 /// The editor is a child of Collections, so that nav item stays lit while it is open.
 fn highlights(current: Route, nav_route: Route) -> bool {
-    current == nav_route || (nav_route == Route::Collections && current == Route::SchemaEditor)
+    let under_collections = matches!(current, Route::SchemaEditor | Route::Documents);
+    current == nav_route || (nav_route == Route::Collections && under_collections)
 }
 
 #[cfg(test)]
@@ -269,7 +289,8 @@ mod tests {
     }
 
     #[test]
-    fn collections_stays_lit_inside_the_schema_editor() {
+    fn collections_stays_lit_inside_the_schema_editor_and_documents() {
+        assert!(highlights(Route::Documents, Route::Collections));
         assert!(highlights(Route::SchemaEditor, Route::Collections));
         assert!(!highlights(Route::SchemaEditor, Route::Health));
     }
