@@ -133,6 +133,26 @@ impl ClientFactory for SdkClientFactory {
     }
 }
 
+/// A client plus the tunnel it depends on; dropping the session closes the tunnel.
+pub struct Session<C> {
+    client: Arc<C>,
+    _tunnel: Option<TunnelHandle>,
+}
+
+impl<C> Session<C> {
+    pub fn new(client: C, tunnel: Option<TunnelHandle>) -> Self {
+        Self {
+            client: Arc::new(client),
+            _tunnel: tunnel,
+        }
+    }
+
+    /// A shared handle, so a worker can outlive the borrow of the session.
+    pub fn client(&self) -> Arc<C> {
+        Arc::clone(&self.client)
+    }
+}
+
 pub struct ConnectionService<T, F> {
     tunnel: Arc<T>,
     clients: F,
@@ -209,6 +229,32 @@ where
             Err(e) => StepStatus::Failed(e),
         };
         report
+    }
+
+    /// Opens the tunnel (if configured) and builds a client that stays usable while the
+    /// returned session lives. Does not probe the server; the first request reports problems.
+    pub async fn connect(
+        &self,
+        profile: &ConnectionProfile,
+        api_key: &Zeroizing<String>,
+        ssh_secret: Option<&Zeroizing<String>>,
+    ) -> Result<Session<F::Client>, GevoError> {
+        let tunnel = match &profile.ssh {
+            None => None,
+            Some(ssh) => Some(
+                self.open_tunnel(ssh, &profile.url, ssh_secret)
+                    .await
+                    .map_err(|failure| failure.error)?,
+            ),
+        };
+        let client = match &tunnel {
+            None => self.clients.build(&profile.url, api_key)?,
+            Some(handle) => {
+                self.clients
+                    .build_via_tunnel(&profile.url, api_key, handle.local_port())?
+            }
+        };
+        Ok(Session::new(client, tunnel))
     }
 
     /// Opens a forward to the profile URL's host and port.
@@ -318,6 +364,79 @@ mod tests {
             .times(1)
             .returning(move |_, _| Ok(client.take().unwrap()));
         f
+    }
+
+    #[tokio::test]
+    async fn connect_without_ssh_builds_a_plain_client() {
+        let mut tunnel = MockSshTunnel::new();
+        tunnel.expect_open().never();
+        let svc = ConnectionService::new(
+            tunnel,
+            factory_returning(MockTypesenseClient::new(), "https://ts.example.com:8443"),
+        );
+
+        assert!(svc.connect(&plain_profile(), &key(), None).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn connect_with_ssh_keeps_the_tunnel_open_until_the_session_drops() {
+        let closed = Arc::new(AtomicBool::new(false));
+        let guard = Arc::clone(&closed);
+        let mut tunnel = MockSshTunnel::new();
+        tunnel.expect_open().times(1).returning(move |_| {
+            Ok(TunnelHandle::new(
+                54321,
+                Box::new(DropFlag(Arc::clone(&guard))),
+            ))
+        });
+        let svc = ConnectionService::new(
+            tunnel,
+            tunnel_factory_returning(MockTypesenseClient::new(), "http://10.0.0.5:8108", 54321),
+        );
+
+        let session = svc.connect(&ssh_profile(), &key(), None).await.unwrap();
+        assert!(!closed.load(Ordering::SeqCst));
+        drop(session);
+        assert!(closed.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn connect_reports_a_tunnel_failure_as_its_error() {
+        let mut tunnel = MockSshTunnel::new();
+        tunnel.expect_open().returning(|_| {
+            Err(TunnelFailure::new(
+                TunnelStage::Auth,
+                GevoError::Tunnel("denied".into()),
+            ))
+        });
+        let mut factory = MockClientFactory::new();
+        factory.expect_build_via_tunnel().never();
+        let svc = ConnectionService::new(tunnel, factory);
+
+        let err = svc
+            .connect(&ssh_profile(), &key(), None)
+            .await
+            .err()
+            .unwrap();
+
+        assert_eq!(err, GevoError::Tunnel("denied".into()));
+    }
+
+    #[tokio::test]
+    async fn connect_reports_a_client_build_failure() {
+        let mut factory = MockClientFactory::new();
+        factory
+            .expect_build()
+            .returning(|_, _| Err(GevoError::Api(TypesenseMsg("bad url".into()))));
+        let svc = ConnectionService::new(MockSshTunnel::new(), factory);
+
+        let err = svc
+            .connect(&plain_profile(), &key(), None)
+            .await
+            .err()
+            .unwrap();
+
+        assert_eq!(err.category(), "API");
     }
 
     #[tokio::test]

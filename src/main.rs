@@ -10,6 +10,7 @@ use gevo::ui::host_key_dialog::{
 use gevo::ui::profile_edit::{self, Outcome};
 use gevo::ui::profiles;
 use gevo::ui::route;
+use gevo::ui::session::{self, SessionSlot};
 use gevo::ui::settings;
 use gevo::ui::sidebar_switcher::{self, SwitcherAction, SwitcherState};
 use gevo::ui::theme::{self, build_visuals, sidebar_bg};
@@ -58,6 +59,7 @@ fn main() -> eframe::Result {
                 applied_preference: None,
                 applied_visuals: None,
                 profile_edit: None,
+                session: SessionSlot::default(),
             }))
         }),
     )
@@ -73,6 +75,7 @@ struct GevoApp {
     applied_preference: Option<egui::ThemePreference>,
     applied_visuals: Option<(egui::Theme, theme::Accent)>,
     profile_edit: Option<profile_edit::ProfileEditScreen>,
+    session: SessionSlot,
     host_key_prompt: std::sync::Arc<dyn HostKeyPrompt>,
     host_keys: HostKeyInbox,
 }
@@ -85,6 +88,7 @@ impl eframe::App for GevoApp {
         let mut settings_changed = false;
         let mut leave_edit = false;
         let mut profile_saved = false;
+        let mut selected = None;
 
         let ctx = ui.ctx().clone();
         let settings = self.settings;
@@ -109,13 +113,15 @@ impl eframe::App for GevoApp {
             |ui| {
                 ui.heading(APP_NAME);
                 ui.separator();
-                if let Some(SwitcherAction::ManageConnections) = sidebar_switcher::render(
+                match sidebar_switcher::render(
                     ui,
                     &mut self.switcher.borrow_mut(),
                     &self.profiles,
                     &self.host_key_prompt,
                 ) {
-                    clicked = Some(Route::Connections);
+                    Some(SwitcherAction::ManageConnections) => clicked = Some(Route::Connections),
+                    Some(SwitcherAction::Selected(id)) => selected = Some(id),
+                    None => {}
                 }
                 ui.separator();
                 for nav_route in NAV_ROUTES {
@@ -165,6 +171,18 @@ impl eframe::App for GevoApp {
 
         if profile_saved {
             self.profiles = FileProfileStore::new(FileProfileStore::default_path()).load_all();
+            // The saved profile may be the active one, so reconnect with its new settings.
+            selected = self.switcher.borrow().active;
+        }
+        if let Some(id) = selected
+            && let Some(profile) = self.profiles.iter().find(|p| p.id == id)
+        {
+            let pending =
+                session::connect(profile.clone(), ctx.clone(), self.host_key_prompt.clone());
+            self.session.begin(id, pending);
+        }
+        if self.session.poll() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         if leave_edit {
             clicked = Some(Route::Connections);
