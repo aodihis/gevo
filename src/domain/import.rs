@@ -26,6 +26,8 @@ pub struct ImportSummary {
     pub failures: Vec<RowFailure>,
     /// True when the run was cancelled before reaching the end of the file.
     pub cancelled: bool,
+    /// The request or read error that stopped the run; earlier chunks are already committed.
+    pub error: Option<GevoError>,
 }
 
 impl ImportSummary {
@@ -98,7 +100,7 @@ pub async fn run_import<C: TypesenseClient>(
     chunk_lines: usize,
     cancel: &AtomicBool,
     mut on_progress: impl FnMut(usize),
-) -> Result<ImportSummary, GevoError> {
+) -> ImportSummary {
     let mut summary = ImportSummary::default();
     let mut line_no = 0;
     let mut sent = 0;
@@ -107,8 +109,14 @@ pub async fn run_import<C: TypesenseClient>(
             summary.cancelled = true;
             break;
         }
-        let chunk = read_chunk(reader, &mut line_no, chunk_lines)
-            .map_err(|e| GevoError::Api(TypesenseMsg(format!("Could not read the file: {e}"))))?;
+        let chunk = match read_chunk(reader, &mut line_no, chunk_lines) {
+            Ok(chunk) => chunk,
+            Err(e) => {
+                let msg = format!("Could not read the file: {e}");
+                summary.error = Some(GevoError::Api(TypesenseMsg(msg)));
+                break;
+            }
+        };
         if chunk.is_empty() {
             break;
         }
@@ -117,7 +125,13 @@ pub async fn run_import<C: TypesenseClient>(
             .map(|(_, text)| text.as_str())
             .collect::<Vec<_>>()
             .join("\n");
-        let results = client.import_documents(collection, body, action).await?;
+        let results = match client.import_documents(collection, body, action).await {
+            Ok(results) => results,
+            Err(err) => {
+                summary.error = Some(err);
+                break;
+            }
+        };
         for (i, (line, text)) in chunk.iter().enumerate() {
             match results.get(i) {
                 Some(r) if r.success => summary.imported += 1,
@@ -133,7 +147,7 @@ pub async fn run_import<C: TypesenseClient>(
         sent += chunk.len();
         on_progress(sent);
     }
-    Ok(summary)
+    summary
 }
 
 #[cfg(test)]
@@ -219,8 +233,7 @@ mod tests {
             &AtomicBool::new(false),
             |n| seen.push(n),
         )
-        .await
-        .unwrap();
+        .await;
 
         assert_eq!((summary.imported, summary.failed()), (2, 0));
         assert!(!summary.cancelled);
@@ -252,8 +265,7 @@ mod tests {
             &AtomicBool::new(false),
             |_| {},
         )
-        .await
-        .unwrap();
+        .await;
 
         assert_eq!(summary.imported, 1);
         assert_eq!(
@@ -292,8 +304,7 @@ mod tests {
             &AtomicBool::new(false),
             |_| {},
         )
-        .await
-        .unwrap();
+        .await;
 
         assert_eq!((summary.imported, summary.failed()), (1, 1));
         assert_eq!(summary.failures[0].line, 2);
@@ -323,35 +334,80 @@ mod tests {
             &AtomicBool::new(false),
             |n| seen.push(n),
         )
-        .await
-        .unwrap();
+        .await;
 
         assert_eq!(summary.imported, 5);
         assert_eq!(seen, [2, 4, 5]);
     }
 
     #[tokio::test]
-    async fn a_request_error_stops_the_import_and_is_returned() {
+    async fn a_request_error_stops_the_import_but_keeps_earlier_results() {
         let mut client = MockTypesenseClient::new();
+        let mut calls = 0;
         client
             .expect_import_documents()
-            .times(1)
-            .returning(|_, _, _| Err(GevoError::Network("down".into())));
-        let mut reader = Cursor::new("a\nb\nc\n");
+            .times(2)
+            .returning(move |_, _, _| {
+                calls += 1;
+                if calls == 1 {
+                    Ok(vec![bad("Bad JSON.", "{oops")])
+                } else {
+                    Err(GevoError::Network("down".into()))
+                }
+            });
+        let mut reader = Cursor::new(
+            "{oops
+b
+c
+",
+        );
+        let mut seen = Vec::new();
 
-        let err = run_import(
+        let summary = run_import(
             &client,
             "c",
             ImportAction::Create,
             &mut reader,
             1,
             &AtomicBool::new(false),
+            |n| seen.push(n),
+        )
+        .await;
+
+        assert_eq!(
+            summary.error.as_ref().map(GevoError::category),
+            Some("NETWORK")
+        );
+        assert_eq!(summary.failed(), 1);
+        assert_eq!(summary.failures[0].line, 1);
+        assert_eq!(seen, [1]);
+        assert!(!summary.cancelled);
+    }
+
+    #[tokio::test]
+    async fn an_unreadable_source_is_reported_in_the_summary() {
+        struct Broken;
+        impl std::io::Read for Broken {
+            fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+                Err(io::Error::other("disk gone"))
+            }
+        }
+        let client = MockTypesenseClient::new();
+        let mut reader = io::BufReader::new(Broken);
+
+        let summary = run_import(
+            &client,
+            "c",
+            ImportAction::Create,
+            &mut reader,
+            10,
+            &AtomicBool::new(false),
             |_| {},
         )
-        .await
-        .unwrap_err();
+        .await;
 
-        assert_eq!(err.category(), "NETWORK");
+        let error = summary.error.expect("an error").to_string();
+        assert!(error.contains("disk gone"), "{error}");
     }
 
     #[tokio::test]
@@ -373,8 +429,7 @@ mod tests {
             &cancel,
             |_| cancel.store(true, Ordering::Relaxed),
         )
-        .await
-        .unwrap();
+        .await;
 
         assert_eq!(summary.imported, 2);
         assert!(summary.cancelled);

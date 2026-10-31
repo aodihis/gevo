@@ -220,11 +220,9 @@ impl eframe::App for GevoApp {
             self.session.begin(id, pending);
             // Anything open belonged to the previous connection.
             self.documents = DocumentsScreen::default();
+            self.import.cancel();
             self.import = ImportScreen::default();
-            if matches!(
-                self.router.current(),
-                Route::Documents | Route::SchemaEditor
-            ) {
+            if self.router.current().is_collection_child() {
                 clicked = Some(Route::Collections);
             }
         }
@@ -291,10 +289,7 @@ impl eframe::App for GevoApp {
 
 /// The editor is a child of Collections, so that nav item stays lit while it is open.
 fn highlights(current: Route, nav_route: Route) -> bool {
-    let under_collections = matches!(
-        current,
-        Route::SchemaEditor | Route::Documents | Route::Import
-    );
+    let under_collections = current.is_collection_child();
     current == nav_route || (nav_route == Route::Collections && under_collections)
 }
 

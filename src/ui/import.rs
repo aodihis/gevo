@@ -22,7 +22,7 @@ use crate::ui::task;
 /// What a running import reports back.
 pub enum ImportEvent {
     Progress(usize),
-    Finished(Result<ImportSummary, GevoError>),
+    Finished(ImportSummary),
 }
 
 /// One line of help per action, from the design handoff.
@@ -73,7 +73,6 @@ enum Phase {
         summary: ImportSummary,
         took: Duration,
     },
-    Failed(GevoError),
 }
 
 /// Import screen state for one collection. Logic is here; `render` is thin glue.
@@ -162,15 +161,17 @@ impl ImportScreen {
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
-                    finished = Some(Err(worker_died()));
+                    finished = Some(ImportSummary {
+                        error: Some(worker_died()),
+                        ..ImportSummary::default()
+                    });
                     break;
                 }
             }
         }
         let took = started.elapsed();
         match finished {
-            Some(Ok(summary)) => self.phase = Phase::Done { summary, took },
-            Some(Err(err)) => self.phase = Phase::Failed(err),
+            Some(summary) => self.phase = Phase::Done { summary, took },
             None => return true,
         }
         false
@@ -190,11 +191,9 @@ impl ImportScreen {
         }
     }
 
+    /// The error that stopped the run, if any; the summary still holds what happened before it.
     pub fn error(&self) -> Option<&GevoError> {
-        match &self.phase {
-            Phase::Failed(err) => Some(err),
-            _ => None,
-        }
+        self.summary()?.0.error.as_ref()
     }
 
     /// Writes the failed rows as JSONL to `path`. No-op message when there are none.
@@ -272,10 +271,17 @@ async fn import_file(
     cancel: &AtomicBool,
     events: &Sender<ImportEvent>,
     repaint: &egui::Context,
-) -> Result<ImportSummary, GevoError> {
-    let file = File::open(path.trim()).map_err(|e| {
-        GevoError::Api(TypesenseMsg(format!("Could not open {}: {e}", path.trim())))
-    })?;
+) -> ImportSummary {
+    let file = match File::open(path.trim()) {
+        Ok(file) => file,
+        Err(e) => {
+            let msg = format!("Could not open {}: {e}", path.trim());
+            return ImportSummary {
+                error: Some(GevoError::Api(TypesenseMsg(msg))),
+                ..ImportSummary::default()
+            };
+        }
+    };
     let mut reader = BufReader::new(file);
     run_import(
         client,
@@ -479,6 +485,7 @@ mod tests {
                 document: "{\"id\":\"x\"}".into(),
             }],
             cancelled: false,
+            error: None,
         }
     }
 
@@ -534,7 +541,7 @@ mod tests {
     #[test]
     fn finishing_stores_the_summary() {
         let (mut screen, tx, _) = running();
-        tx.send(ImportEvent::Finished(Ok(summary_with_failure())))
+        tx.send(ImportEvent::Finished(summary_with_failure()))
             .unwrap();
         assert!(!screen.poll());
         let (summary, _) = screen.summary().unwrap();
@@ -543,13 +550,17 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_run_keeps_the_error() {
+    fn a_run_that_stopped_on_an_error_keeps_the_partial_results() {
         let (mut screen, tx, _) = running();
-        tx.send(ImportEvent::Finished(Err(GevoError::Auth("no".into()))))
-            .unwrap();
+        let partial = ImportSummary {
+            error: Some(GevoError::Auth("no".into())),
+            ..summary_with_failure()
+        };
+        tx.send(ImportEvent::Finished(partial)).unwrap();
         screen.poll();
         assert_eq!(screen.error().map(GevoError::category), Some("AUTH"));
-        assert!(screen.summary().is_none());
+        let (summary, _) = screen.summary().unwrap();
+        assert_eq!((summary.imported, summary.failed()), (3, 1));
     }
 
     #[test]
@@ -573,7 +584,7 @@ mod tests {
     #[test]
     fn failed_rows_are_written_as_jsonl() {
         let (mut screen, tx, _) = running();
-        tx.send(ImportEvent::Finished(Ok(summary_with_failure())))
+        tx.send(ImportEvent::Finished(summary_with_failure()))
             .unwrap();
         screen.poll();
         let dir = tempfile::tempdir().unwrap();
@@ -588,7 +599,7 @@ mod tests {
     #[test]
     fn a_save_error_is_reported_not_raised() {
         let (mut screen, tx, _) = running();
-        tx.send(ImportEvent::Finished(Ok(summary_with_failure())))
+        tx.send(ImportEvent::Finished(summary_with_failure()))
             .unwrap();
         screen.poll();
         let dir = tempfile::tempdir().unwrap();
@@ -627,10 +638,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_missing_file_is_an_api_style_error() {
+    async fn a_missing_file_is_reported_in_the_summary() {
         let client = SdkTypesenseClient::new("http://localhost:1", "k").unwrap();
         let (tx, _rx) = channel();
-        let err = import_file(
+        let summary = import_file(
             &client,
             "books",
             ImportAction::Create,
@@ -639,9 +650,10 @@ mod tests {
             &tx,
             &egui::Context::default(),
         )
-        .await
-        .unwrap_err();
-        assert!(err.to_string().contains("Could not open"));
+        .await;
+        let error = summary.error.expect("an error").to_string();
+        assert!(error.contains("Could not open"), "{error}");
+        assert_eq!(summary.imported, 0);
     }
 
     #[test]
