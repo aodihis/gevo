@@ -312,11 +312,12 @@ impl CollectionsScreen {
                     ui.end_row();
                     for c in filter(self.collections(), &self.filter) {
                         let r = row(c);
-                        ui.label(
-                            RichText::new(&r.name)
-                                .monospace()
-                                .color(ui.visuals().hyperlink_color),
-                        );
+                        let name = RichText::new(&r.name)
+                            .monospace()
+                            .color(ui.visuals().hyperlink_color);
+                        if ui.link(name).clicked() {
+                            action = Some(CollectionsAction::Open(r.name.clone()));
+                        }
                         ui.label(RichText::new(&r.documents).monospace());
                         ui.label(RichText::new(r.fields.to_string()).monospace());
                         ui.label(&r.default_sort);
@@ -365,6 +366,7 @@ pub enum CollectionsAction {
     New,
     Edit(String),
     Clone(String),
+    Open(String),
 }
 
 fn error_line(ui: &mut egui::Ui, err: &GevoError) {
