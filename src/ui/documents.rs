@@ -9,6 +9,7 @@ use crate::domain::documents::{DocumentQuery, SearchPage};
 use crate::domain::error::GevoError;
 use crate::domain::typesense_client::{SdkTypesenseClient, TypesenseClient};
 use crate::ui::confirm_delete::{self, ConfirmDelete, ConfirmOutcome};
+use crate::ui::export::{ExportState, export_to_file};
 use crate::ui::session::{SessionSlot, SessionState};
 use crate::ui::status_chip::{ChipView, status_chip};
 use crate::ui::task;
@@ -97,6 +98,7 @@ pub struct DocumentsScreen {
     confirm: Option<ConfirmDelete>,
     deleting: Option<Deleting>,
     action_error: Option<GevoError>,
+    export: ExportState,
 }
 
 impl Default for DocumentsScreen {
@@ -110,6 +112,7 @@ impl Default for DocumentsScreen {
             confirm: None,
             deleting: None,
             action_error: None,
+            export: ExportState::default(),
         }
     }
 }
@@ -234,7 +237,8 @@ impl DocumentsScreen {
                 Err(TryRecvError::Disconnected) => self.action_error = Some(worker_died()),
             }
         }
-        self.is_loading() || self.deleting.is_some()
+        let exporting = self.export.poll();
+        self.is_loading() || self.deleting.is_some() || exporting
     }
 
     /// After deletes emptied the shown page while hits remain, the query for the last real page.
@@ -334,6 +338,25 @@ impl DocumentsScreen {
                 if ui.button("Import JSONL").clicked() {
                     action = Some(DocumentsAction::Import);
                 }
+                let label = if self.applied.filter_by.trim().is_empty() {
+                    "Export"
+                } else {
+                    "Export (filtered)"
+                };
+                if ui
+                    .add_enabled(!self.export.is_running(), egui::Button::new(label))
+                    .on_hover_text(
+                        "Saves the documents matching filter_by as JSONL; all if it is empty",
+                    )
+                    .clicked()
+                    && let Some(path) = rfd::FileDialog::new()
+                        .set_file_name(format!("{name}.jsonl"))
+                        .save_file()
+                {
+                    let filter = self.applied.filter_by.clone();
+                    self.export
+                        .begin(spawn_export(&ctx, &client, &name, filter, path));
+                }
             });
         });
         let mut next = None;
@@ -345,6 +368,11 @@ impl DocumentsScreen {
         }
         if let Some(err) = &self.action_error {
             error_line(ui, err);
+        }
+        if let Some(err) = self.export.error() {
+            error_line(ui, err);
+        } else if let Some(message) = self.export.message() {
+            ui.weak(message);
         }
         self.results_table(ui);
         self.pager(ui, &mut next);
@@ -538,6 +566,19 @@ fn spawn_search(
     let (client, collection) = (Arc::clone(client), collection.to_owned());
     task::run(ctx.clone(), async move {
         client.search_documents(&collection, &query).await
+    })
+}
+
+fn spawn_export(
+    ctx: &egui::Context,
+    client: &Arc<SdkTypesenseClient>,
+    collection: &str,
+    filter_by: String,
+    path: std::path::PathBuf,
+) -> Receiver<Result<crate::ui::export::Exported, GevoError>> {
+    let (client, collection) = (Arc::clone(client), collection.to_owned());
+    task::run(ctx.clone(), async move {
+        export_to_file(&*client, &collection, &filter_by, &path).await
     })
 }
 
