@@ -224,6 +224,12 @@ impl eframe::App for GevoApp {
                     clicked = Some(Route::SchemaEditor);
                 }
             }
+            Some(CollectionsAction::Clone(name)) => {
+                if let Some(c) = self.collections.find(&name) {
+                    self.schema_editor = Some(SchemaEditorScreen::new(SchemaDraft::clone_of(c)));
+                    clicked = Some(Route::SchemaEditor);
+                }
+            }
             None => {}
         }
         if editor_outcome != SchemaOutcome::None {

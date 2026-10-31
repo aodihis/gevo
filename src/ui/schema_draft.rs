@@ -57,6 +57,8 @@ pub struct SchemaDraft {
     dropped: BTreeSet<String>,
     pub added: Vec<Field>,
     documents: i64,
+    /// Collection-level settings a clone carries over; name, fields and sort are rebuilt.
+    base: CollectionSchema<'static>,
 }
 
 impl SchemaDraft {
@@ -70,6 +72,7 @@ impl SchemaDraft {
             dropped: BTreeSet::new(),
             added: Vec::new(),
             documents: c.num_documents,
+            base: CollectionSchema::default(),
         }
     }
 
@@ -82,6 +85,27 @@ impl SchemaDraft {
             dropped: BTreeSet::new(),
             added: Vec::new(),
             documents: 0,
+            base: CollectionSchema::default(),
+        }
+    }
+
+    /// A create draft prefilled from an existing collection, as a starting point for a new one.
+    pub fn clone_of(c: &CollectionResponse) -> Self {
+        let base = CollectionSchema {
+            token_separators: c.token_separators.clone(),
+            synonym_sets: c.synonym_sets.clone(),
+            enable_nested_fields: c.enable_nested_fields,
+            symbols_to_index: c.symbols_to_index.clone(),
+            voice_query_model: c.voice_query_model.clone(),
+            metadata: c.metadata.clone(),
+            ..CollectionSchema::default()
+        };
+        Self {
+            name: format!("{}_copy", c.name),
+            default_sorting_field: c.default_sorting_field.clone().unwrap_or_default(),
+            added: c.fields.clone(),
+            base,
+            ..Self::create()
         }
     }
 
@@ -207,8 +231,11 @@ impl SchemaDraft {
             name: f.name.trim().to_owned(),
             ..f.clone()
         });
-        let mut schema =
-            CollectionSchema::new(self.name.trim().to_owned().into(), fields.collect());
+        let mut schema = CollectionSchema {
+            name: self.name.trim().to_owned().into(),
+            fields: fields.collect(),
+            ..self.base.clone()
+        };
         let sort = self.default_sorting_field.trim();
         if !sort.is_empty() {
             schema.default_sorting_field = Some(sort.to_owned().into());
@@ -577,6 +604,56 @@ mod tests {
                 .unwrap_err()
                 .starts_with("Invalid JSON")
         );
+    }
+
+    fn nested_source() -> CollectionResponse {
+        let mut vec_field = field("embedding", "float[]");
+        vec_field.num_dim = Some(4);
+        let mut source = products();
+        source.fields.push(vec_field);
+        source.default_sorting_field = Some("price".into());
+        source.token_separators = Some(vec!["-".into()]);
+        source.enable_nested_fields = Some(true);
+        source
+    }
+
+    #[test]
+    fn a_clone_is_a_create_draft_named_after_the_source() {
+        let d = SchemaDraft::clone_of(&nested_source());
+        assert!(d.is_create());
+        assert_eq!(d.alter_target(), None);
+        assert_eq!(d.name, "products_copy");
+        assert_eq!(d.default_sorting_field, "price");
+        assert_eq!(d.documents(), 0);
+    }
+
+    #[test]
+    fn a_clone_copies_every_field_including_advanced_attributes() {
+        let d = SchemaDraft::clone_of(&nested_source());
+        let names: Vec<&str> = d.added.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, ["name", "price", "legacy_sku", "embedding"]);
+        assert_eq!(d.added[3].num_dim, Some(4));
+    }
+
+    #[test]
+    fn a_clone_request_keeps_collection_level_settings() {
+        let schema = SchemaDraft::clone_of(&nested_source()).to_create();
+        assert_eq!(schema.name, "products_copy");
+        assert_eq!(schema.default_sorting_field.as_deref(), Some("price"));
+        assert_eq!(schema.token_separators, Some(vec!["-".to_string()]));
+        assert_eq!(schema.enable_nested_fields, Some(true));
+    }
+
+    #[test]
+    fn a_clone_without_a_default_sort_has_none() {
+        let d = SchemaDraft::clone_of(&products());
+        assert_eq!(d.default_sorting_field, "");
+        assert_eq!(d.to_create().default_sorting_field, None);
+    }
+
+    #[test]
+    fn a_clone_is_valid_as_is() {
+        assert!(SchemaDraft::clone_of(&products()).problems().is_empty());
     }
 
     #[test]
