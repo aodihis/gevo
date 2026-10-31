@@ -326,6 +326,9 @@ impl CollectionsScreen {
                             if ui.button("Edit").clicked() {
                                 action = Some(CollectionsAction::Edit(r.name.clone()));
                             }
+                            if ui.button("Clone").clicked() {
+                                action = Some(CollectionsAction::Clone(r.name.clone()));
+                            }
                             if ui.add_enabled(!busy, egui::Button::new("Delete")).clicked() {
                                 delete = Some(r.name.clone());
                             }
@@ -361,6 +364,7 @@ impl CollectionsScreen {
 pub enum CollectionsAction {
     New,
     Edit(String),
+    Clone(String),
 }
 
 fn error_line(ui: &mut egui::Ui, err: &GevoError) {
