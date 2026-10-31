@@ -226,13 +226,12 @@ impl eframe::App for GevoApp {
             }
             None => {}
         }
-        match editor_outcome {
-            SchemaOutcome::None => {}
-            SchemaOutcome::Back => clicked = Some(Route::Collections),
-            SchemaOutcome::Done => {
+        if editor_outcome != SchemaOutcome::None {
+            let was_applying = self.schema_editor.as_ref().is_some_and(|e| e.is_applying());
+            if editor_outcome.list_is_stale(was_applying) {
                 self.collections.reset();
-                clicked = Some(Route::Collections);
             }
+            clicked = Some(Route::Collections);
         }
         // A half-edited draft is discarded as soon as the user leaves the editor.
         if self.router.current() != Route::SchemaEditor && clicked != Some(Route::SchemaEditor) {

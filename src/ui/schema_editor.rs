@@ -19,6 +19,14 @@ pub enum Outcome {
     Done,
 }
 
+impl Outcome {
+    /// Whether the collection list must be refetched. Leaving mid-apply counts: the request
+    /// still runs, but nobody is left to watch its result.
+    pub fn list_is_stale(self, was_applying: bool) -> bool {
+        self == Outcome::Done || (self == Outcome::Back && was_applying)
+    }
+}
+
 type Applying = Receiver<Result<(), GevoError>>;
 
 /// State of the schema editor. Logic is here; `render` is thin glue.
@@ -315,6 +323,14 @@ mod tests {
         let mut screen = SchemaEditorScreen::new(SchemaDraft::alter(&c));
         screen.draft.toggle_drop("legacy");
         screen
+    }
+
+    #[test]
+    fn the_list_is_stale_after_done_or_after_leaving_mid_apply() {
+        assert!(Outcome::Done.list_is_stale(false));
+        assert!(Outcome::Back.list_is_stale(true));
+        assert!(!Outcome::Back.list_is_stale(false));
+        assert!(!Outcome::None.list_is_stale(true));
     }
 
     #[test]
