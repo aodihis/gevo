@@ -148,6 +148,10 @@ impl CollectionsScreen {
         }
     }
 
+    pub fn find(&self, name: &str) -> Option<&CollectionResponse> {
+        self.collections().iter().find(|c| c.name == name)
+    }
+
     pub fn is_loading(&self) -> bool {
         matches!(self.list, ListState::Loading(_))
     }
@@ -227,33 +231,37 @@ fn worker_died() -> GevoError {
 
 /// Render glue; the logic above is what is tested.
 impl CollectionsScreen {
-    pub fn render(&mut self, ui: &mut egui::Ui, session: &SessionSlot, connection: &str) {
+    pub fn render(
+        &mut self,
+        ui: &mut egui::Ui,
+        session: &SessionSlot,
+        connection: &str,
+    ) -> Option<CollectionsAction> {
         let ctx = ui.ctx().clone();
         let Some(profile) = session.profile() else {
             ui.label("No active connection. Pick one from the switcher in the sidebar.");
-            return;
+            return None;
         };
         match session.state() {
             SessionState::None => {
                 ui.label("No active connection. Pick one from the switcher in the sidebar.");
-                return;
+                return None;
             }
             SessionState::Connecting => {
                 ui.horizontal(|ui| {
                     ui.spinner();
                     ui.label("Connecting…");
                 });
-                return;
+                return None;
             }
             SessionState::Failed(err) => {
                 error_line(ui, err);
-                return;
+                return None;
             }
             SessionState::Ready(_) => {}
         }
-        let Some(client) = session.client() else {
-            return;
-        };
+        let client = session.client()?;
+        let mut action = None;
 
         if self.needs_load(profile) {
             self.begin_load(profile, spawn_load(&ctx, &client));
@@ -277,6 +285,11 @@ impl CollectionsScreen {
             if self.is_loading() {
                 ui.spinner();
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("New collection").clicked() {
+                    action = Some(CollectionsAction::New);
+                }
+            });
         });
         ui.add_space(8.0);
 
@@ -309,9 +322,14 @@ impl CollectionsScreen {
                         ui.label(&r.default_sort);
                         ui.label(&r.created);
                         let busy = self.is_deleting(&r.name);
-                        if ui.add_enabled(!busy, egui::Button::new("Delete")).clicked() {
-                            delete = Some(r.name.clone());
-                        }
+                        ui.horizontal(|ui| {
+                            if ui.button("Edit").clicked() {
+                                action = Some(CollectionsAction::Edit(r.name.clone()));
+                            }
+                            if ui.add_enabled(!busy, egui::Button::new("Delete")).clicked() {
+                                delete = Some(r.name.clone());
+                            }
+                        });
                         ui.end_row();
                     }
                 });
@@ -334,7 +352,15 @@ impl CollectionsScreen {
             }
             Some(ConfirmOutcome::Pending) | None => {}
         }
+        action
     }
+}
+
+/// Where the user asked to go from the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CollectionsAction {
+    New,
+    Edit(String),
 }
 
 fn error_line(ui: &mut egui::Ui, err: &GevoError) {
@@ -507,6 +533,13 @@ mod tests {
             screen.load_error().map(GevoError::category),
             Some("NETWORK")
         );
+    }
+
+    #[test]
+    fn find_returns_a_loaded_collection_by_name() {
+        let screen = loaded(&["a", "b"]);
+        assert_eq!(screen.find("b").map(|c| c.name.as_str()), Some("b"));
+        assert!(screen.find("ghost").is_none());
     }
 
     #[test]
