@@ -2,6 +2,7 @@ pub mod connection_service;
 pub mod credential_store;
 pub mod documents;
 pub mod error;
+pub mod import;
 pub mod profile;
 pub mod profile_store;
 pub mod russh_tunnel;

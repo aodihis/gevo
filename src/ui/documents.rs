@@ -297,9 +297,15 @@ fn worker_died() -> GevoError {
     GevoError::Network("request worker stopped unexpectedly".to_string())
 }
 
+/// Where the user asked to go from the documents screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocumentsAction {
+    Import,
+}
+
 /// Render glue; the logic above is what is tested.
 impl DocumentsScreen {
-    pub fn render(&mut self, ui: &mut egui::Ui, session: &SessionSlot) {
+    pub fn render(&mut self, ui: &mut egui::Ui, session: &SessionSlot) -> Option<DocumentsAction> {
         let ctx = ui.ctx().clone();
         let Some(client) = session.client() else {
             if let SessionState::Failed(err) = session.state() {
@@ -307,11 +313,11 @@ impl DocumentsScreen {
             } else {
                 ui.label("Not connected.");
             }
-            return;
+            return None;
         };
         let Some(name) = self.collection_name().map(str::to_owned) else {
             ui.label("Pick a collection from the Collections screen.");
-            return;
+            return None;
         };
         if self.needs_load() {
             let query = self.submit();
@@ -321,7 +327,15 @@ impl DocumentsScreen {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
 
-        ui.heading(&name);
+        let mut action = None;
+        ui.horizontal(|ui| {
+            ui.heading(&name);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.button("Import JSONL").clicked() {
+                    action = Some(DocumentsAction::Import);
+                }
+            });
+        });
         let mut next = None;
         self.search_bar(ui, &mut next);
         ui.add_space(8.0);
@@ -358,6 +372,7 @@ impl DocumentsScreen {
         if let Some(query) = next {
             self.begin_search(spawn_search(&ctx, &client, &name, query));
         }
+        action
     }
 
     fn search_bar(&mut self, ui: &mut egui::Ui, next: &mut Option<DocumentQuery>) {
