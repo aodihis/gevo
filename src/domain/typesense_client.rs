@@ -3,13 +3,15 @@ use std::net::{Ipv4Addr, SocketAddr};
 
 use url::{Host, Url};
 
+use serde_json::Value;
 use typesense::error::ApiError;
 use typesense::models::{
     ApiStatsResponse, CollectionResponse, CollectionSchema, CollectionUpdateSchema,
-    GetCollectionsParameters,
+    ExportDocumentsParameters, GetCollectionsParameters, ImportDocumentsParameters,
 };
 use typesense::{Client, Error as SdkError, NodeConfig};
 
+use super::documents::{DocumentQuery, ImportAction, ImportLine, SearchPage, parse_import_report};
 use super::error::{GevoError, TypesenseMsg};
 
 /// Server-facing operations for the connection test and health screens.
@@ -47,6 +49,34 @@ pub trait TypesenseClient {
 
     /// `DELETE /collections/{name}`.
     async fn delete_collection(&self, name: &str) -> Result<CollectionResponse, GevoError>;
+
+    /// `GET /collections/{name}/documents/search`.
+    async fn search_documents(
+        &self,
+        collection: &str,
+        query: &DocumentQuery,
+    ) -> Result<SearchPage, GevoError>;
+
+    /// `GET /collections/{name}/documents/{id}`.
+    async fn get_document(&self, collection: &str, id: &str) -> Result<Value, GevoError>;
+
+    /// `DELETE /collections/{name}/documents/{id}`; returns the deleted document.
+    async fn delete_document(&self, collection: &str, id: &str) -> Result<Value, GevoError>;
+
+    /// `POST /collections/{name}/documents/import`: one result per input line.
+    async fn import_documents(
+        &self,
+        collection: &str,
+        jsonl: String,
+        action: ImportAction,
+    ) -> Result<Vec<ImportLine>, GevoError>;
+
+    /// `GET /collections/{name}/documents/export`: the documents as JSONL; a blank filter exports all.
+    async fn export_documents(
+        &self,
+        collection: &str,
+        filter_by: &str,
+    ) -> Result<String, GevoError>;
 }
 
 /// `TypesenseClient` backed by the official `typesense` SDK.
@@ -172,6 +202,75 @@ impl TypesenseClient for SdkTypesenseClient {
         self.client
             .collection_schemaless(name)
             .delete()
+            .await
+            .map_err(map_error)
+    }
+
+    async fn search_documents(
+        &self,
+        collection: &str,
+        query: &DocumentQuery,
+    ) -> Result<SearchPage, GevoError> {
+        self.client
+            .collection_schemaless(collection)
+            .documents()
+            .search(query.to_params())
+            .await
+            .map(SearchPage::from_result)
+            .map_err(map_error)
+    }
+
+    async fn get_document(&self, collection: &str, id: &str) -> Result<Value, GevoError> {
+        self.client
+            .collection_schemaless(collection)
+            .document(id)
+            .retrieve()
+            .await
+            .map_err(map_error)
+    }
+
+    async fn delete_document(&self, collection: &str, id: &str) -> Result<Value, GevoError> {
+        self.client
+            .collection_schemaless(collection)
+            .document(id)
+            .delete()
+            .await
+            .map_err(map_error)
+    }
+
+    async fn import_documents(
+        &self,
+        collection: &str,
+        jsonl: String,
+        action: ImportAction,
+    ) -> Result<Vec<ImportLine>, GevoError> {
+        let params = ImportDocumentsParameters {
+            action: Some(action.to_sdk()),
+            ..ImportDocumentsParameters::new()
+        };
+        let report = self
+            .client
+            .collection_schemaless(collection)
+            .documents()
+            .import_jsonl(jsonl, params)
+            .await
+            .map_err(map_error)?;
+        parse_import_report(&report).map_err(|e| GevoError::Api(TypesenseMsg(e)))
+    }
+
+    async fn export_documents(
+        &self,
+        collection: &str,
+        filter_by: &str,
+    ) -> Result<String, GevoError> {
+        let params = ExportDocumentsParameters {
+            filter_by: (!filter_by.trim().is_empty()).then(|| filter_by.trim().into()),
+            ..ExportDocumentsParameters::new()
+        };
+        self.client
+            .collection_schemaless(collection)
+            .documents()
+            .export_jsonl(params)
             .await
             .map_err(map_error)
     }
@@ -387,6 +486,58 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn mock_client_serves_document_operations() {
+        let mut mock = MockTypesenseClient::new();
+        mock.expect_search_documents()
+            .withf(|c, q| c == "books" && q.page == 2)
+            .returning(|_, _| Ok(SearchPage::default()));
+        mock.expect_get_document()
+            .withf(|c, id| c == "books" && id == "7")
+            .returning(|_, _| Ok(serde_json::json!({"id": "7"})));
+        mock.expect_delete_document()
+            .returning(|_, _| Err(GevoError::Api(TypesenseMsg("Not Found".into()))));
+        mock.expect_import_documents()
+            .withf(|_, jsonl, action| jsonl.lines().count() == 2 && *action == ImportAction::Upsert)
+            .returning(|_, _, _| {
+                Ok(vec![ImportLine {
+                    success: true,
+                    error: None,
+                    document: None,
+                }])
+            });
+        mock.expect_export_documents()
+            .withf(|_, filter| filter == "year:>2000")
+            .returning(|_, _| Ok("{}\n".to_owned()));
+
+        let query = DocumentQuery {
+            page: 2,
+            ..DocumentQuery::default()
+        };
+        assert_eq!(
+            mock.search_documents("books", &query).await.unwrap().found,
+            0
+        );
+        assert_eq!(mock.get_document("books", "7").await.unwrap()["id"], "7");
+        assert_eq!(
+            mock.delete_document("books", "9")
+                .await
+                .unwrap_err()
+                .category(),
+            "API"
+        );
+        let jsonl = "{\"id\":\"1\"}\n{\"id\":\"2\"}".to_owned();
+        let lines = mock
+            .import_documents("books", jsonl, ImportAction::Upsert)
+            .await
+            .unwrap();
+        assert!(lines[0].success);
+        assert_eq!(
+            mock.export_documents("books", "year:>2000").await.unwrap(),
+            "{}\n"
+        );
+    }
+
     // Needs a real server: TYPESENSE_URL and TYPESENSE_API_KEY (admin).
     fn live_client() -> SdkTypesenseClient {
         let url = std::env::var("TYPESENSE_URL").expect("TYPESENSE_URL");
@@ -438,6 +589,59 @@ mod tests {
         client.delete_collection(&name).await.unwrap();
         let err = client.get_collection(&name).await.unwrap_err();
         assert_eq!(err.category(), "API");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a running Typesense"]
+    async fn live_document_lifecycle() {
+        use typesense::models::Field;
+        let client = live_client();
+        let name = format!("gevo_docs_{}", std::process::id());
+        let schema = CollectionSchema::new(
+            name.clone().into(),
+            vec![Field::new("title".into(), "string".into())],
+        );
+        client.create_collection(schema).await.unwrap();
+
+        let jsonl = "{\"id\":\"1\",\"title\":\"Dune\"}\n{\"id\":\"2\",\"title\":\"Emma\"}\n{\"id\":\"3\",\"title\":5}".to_owned();
+        let report = client
+            .import_documents(&name, jsonl, ImportAction::Create)
+            .await
+            .unwrap();
+        assert_eq!(report.iter().filter(|l| l.success).count(), 2);
+        assert!(report[2].error.is_some());
+
+        let query = DocumentQuery {
+            q: "dune".into(),
+            query_by: "title".into(),
+            ..DocumentQuery::default()
+        };
+        let page = client.search_documents(&name, &query).await.unwrap();
+        assert_eq!(page.found, 1);
+        assert_eq!(
+            client.get_document(&name, "2").await.unwrap()["title"],
+            "Emma"
+        );
+        assert_eq!(
+            client
+                .export_documents(&name, "")
+                .await
+                .unwrap()
+                .lines()
+                .count(),
+            2
+        );
+        client.delete_document(&name, "1").await.unwrap();
+        assert_eq!(
+            client
+                .get_document(&name, "1")
+                .await
+                .unwrap_err()
+                .category(),
+            "API"
+        );
+
+        client.delete_collection(&name).await.unwrap();
     }
 
     #[tokio::test]
