@@ -1,6 +1,7 @@
 pub mod collections;
 pub mod confirm_delete;
 pub mod documents;
+pub mod export;
 pub mod fonts;
 pub mod host_key_dialog;
 pub mod import;
