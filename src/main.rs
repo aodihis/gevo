@@ -5,10 +5,11 @@ use gevo::domain::profile_store::{FileProfileStore, ProfileStore};
 use gevo::domain::ssh_tunnel::HostKeyPrompt;
 use gevo::state::{Route, Router, Settings};
 use gevo::ui::collections::{CollectionsAction, CollectionsScreen};
-use gevo::ui::documents::DocumentsScreen;
+use gevo::ui::documents::{DocumentsAction, DocumentsScreen};
 use gevo::ui::host_key_dialog::{
     HostKeyInbox, PROMPT_TIMEOUT, host_key_channel, show as show_host_key_dialog,
 };
+use gevo::ui::import::ImportScreen;
 use gevo::ui::profile_edit::{self, Outcome};
 use gevo::ui::profiles;
 use gevo::ui::route;
@@ -67,6 +68,7 @@ fn main() -> eframe::Result {
                 collections: CollectionsScreen::default(),
                 schema_editor: None,
                 documents: DocumentsScreen::default(),
+                import: ImportScreen::default(),
             }))
         }),
     )
@@ -86,6 +88,7 @@ struct GevoApp {
     collections: CollectionsScreen,
     schema_editor: Option<SchemaEditorScreen>,
     documents: DocumentsScreen,
+    import: ImportScreen,
     host_key_prompt: std::sync::Arc<dyn HostKeyPrompt>,
     host_keys: HostKeyInbox,
 }
@@ -100,6 +103,8 @@ impl eframe::App for GevoApp {
         let mut profile_saved = false;
         let mut selected = None;
         let mut collections_action = None;
+        let mut documents_action = None;
+        let mut import_back = false;
         let mut editor_outcome = SchemaOutcome::None;
         let has_active = self.switcher.borrow().active.is_some();
 
@@ -180,7 +185,9 @@ impl eframe::App for GevoApp {
                         .map_or(String::new(), |p| p.name.clone());
                     collections_action = self.collections.render(ui, &self.session, &name);
                 } else if current == Route::Documents {
-                    self.documents.render(ui, &self.session);
+                    documents_action = self.documents.render(ui, &self.session);
+                } else if current == Route::Import {
+                    import_back = self.import.render(ui, &self.session);
                 } else if current == Route::SchemaEditor {
                     if let Some(editor) = &mut self.schema_editor {
                         editor_outcome = editor.render(ui, self.session.client().as_ref());
@@ -213,10 +220,9 @@ impl eframe::App for GevoApp {
             self.session.begin(id, pending);
             // Anything open belonged to the previous connection.
             self.documents = DocumentsScreen::default();
-            if matches!(
-                self.router.current(),
-                Route::Documents | Route::SchemaEditor
-            ) {
+            self.import.cancel();
+            self.import = ImportScreen::default();
+            if self.router.current().is_collection_child() {
                 clicked = Some(Route::Collections);
             }
         }
@@ -251,6 +257,15 @@ impl eframe::App for GevoApp {
             }
             None => {}
         }
+        if let Some(DocumentsAction::Import) = documents_action
+            && let Some(name) = self.documents.collection_name()
+        {
+            self.import.open(name);
+            clicked = Some(Route::Import);
+        }
+        if import_back {
+            clicked = Some(Route::Documents);
+        }
         if editor_outcome != SchemaOutcome::None {
             let was_applying = self.schema_editor.as_ref().is_some_and(|e| e.is_applying());
             if editor_outcome.list_is_stale(was_applying) {
@@ -274,7 +289,7 @@ impl eframe::App for GevoApp {
 
 /// The editor is a child of Collections, so that nav item stays lit while it is open.
 fn highlights(current: Route, nav_route: Route) -> bool {
-    let under_collections = matches!(current, Route::SchemaEditor | Route::Documents);
+    let under_collections = current.is_collection_child();
     current == nav_route || (nav_route == Route::Collections && under_collections)
 }
 

@@ -36,6 +36,11 @@ impl Route {
         }
     }
 
+    /// Screens opened from a collection; they belong to the connection that listed it.
+    pub fn is_collection_child(self) -> bool {
+        matches!(self, Route::SchemaEditor | Route::Documents | Route::Import)
+    }
+
     /// Whether the screen talks to the server, so it is unavailable without an active profile.
     pub fn needs_connection(self) -> bool {
         !matches!(
@@ -129,6 +134,21 @@ mod tests {
         }
         for route in [Route::Connections, Route::ConnectionEdit, Route::Settings] {
             assert!(!route.needs_connection(), "{route:?}");
+        }
+    }
+
+    #[test]
+    fn collection_children_are_the_screens_opened_from_a_collection() {
+        for route in [Route::SchemaEditor, Route::Documents, Route::Import] {
+            assert!(route.is_collection_child(), "{route:?}");
+        }
+        for route in [
+            Route::Collections,
+            Route::ApiKeys,
+            Route::Health,
+            Route::Settings,
+        ] {
+            assert!(!route.is_collection_child(), "{route:?}");
         }
     }
 
