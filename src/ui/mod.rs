@@ -1,3 +1,4 @@
+pub mod confirm_delete;
 pub mod fonts;
 pub mod host_key_dialog;
 pub mod profile_edit;
