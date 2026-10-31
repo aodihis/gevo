@@ -6,7 +6,7 @@ use eframe::egui::{self, ComboBox, RichText, TextEdit};
 use crate::domain::error::GevoError;
 use crate::domain::typesense_client::{SdkTypesenseClient, TypesenseClient};
 use crate::ui::collections::format_count;
-use crate::ui::schema_draft::{self, BASIC_TYPES, SchemaDraft};
+use crate::ui::schema_draft::{self, BASIC_TYPES, Request, SchemaDraft};
 use crate::ui::status_chip::{ChipView, status_chip};
 use crate::ui::task;
 
@@ -32,14 +32,27 @@ type Applying = Receiver<Result<(), GevoError>>;
 /// State of the schema editor. Logic is here; `render` is thin glue.
 pub struct SchemaEditorScreen {
     draft: SchemaDraft,
+    mode: Mode,
+    raw: String,
+    raw_error: Option<String>,
     applying: Option<Applying>,
     error: Option<GevoError>,
+}
+
+/// Form edits the draft; Raw edits the request body directly, for what the form cannot express.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    Form,
+    Raw,
 }
 
 impl SchemaEditorScreen {
     pub fn new(draft: SchemaDraft) -> Self {
         Self {
             draft,
+            mode: Mode::Form,
+            raw: String::new(),
+            raw_error: None,
             applying: None,
             error: None,
         }
@@ -49,12 +62,51 @@ impl SchemaEditorScreen {
         &self.draft
     }
 
+    pub fn mode(&self) -> Mode {
+        self.mode
+    }
+
+    /// Entering Raw starts from the form's request; leaving it discards the raw text.
+    pub fn set_mode(&mut self, mode: Mode) {
+        if mode == self.mode {
+            return;
+        }
+        self.mode = mode;
+        self.raw_error = None;
+        self.raw = match mode {
+            Mode::Raw => self.draft.request().body_json(),
+            Mode::Form => String::new(),
+        };
+    }
+
     pub fn is_applying(&self) -> bool {
         self.applying.is_some()
     }
 
+    /// Raw text is only checked when sent, so it never blocks the button.
     pub fn can_apply(&self) -> bool {
-        !self.is_applying() && self.draft.problems().is_empty()
+        !self.is_applying() && (self.mode == Mode::Raw || self.draft.problems().is_empty())
+    }
+
+    /// The request to send, or `None` with `raw_error` set when the raw text is unusable.
+    pub fn build_request(&mut self) -> Option<Request> {
+        if self.mode == Mode::Form {
+            return Some(self.draft.request());
+        }
+        let parsed = match self.draft.alter_target() {
+            Some(name) => Request::parse_alter(name, &self.raw),
+            None => Request::parse_create(&self.raw),
+        };
+        match parsed {
+            Ok(request) => {
+                self.raw_error = None;
+                Some(request)
+            }
+            Err(message) => {
+                self.raw_error = Some(message);
+                None
+            }
+        }
     }
 
     pub fn begin_apply(&mut self, pending: Applying) {
@@ -110,14 +162,26 @@ impl SchemaEditorScreen {
                 );
             }
             ui.add_space(8.0);
-            self.fields_grid(ui);
-            ui.add_space(4.0);
-            if ui.button("Add field").clicked() {
-                self.draft.add_blank();
+            self.mode_toggle(ui);
+            ui.add_space(8.0);
+            match self.mode {
+                Mode::Form => {
+                    self.fields_grid(ui);
+                    ui.add_space(4.0);
+                    if ui.button("Add field").clicked() {
+                        self.draft.add_blank();
+                    }
+                    ui.weak(
+                        "Nested objects, embeddings and other advanced types are shown read-only.",
+                    );
+                    ui.add_space(12.0);
+                    self.pending_panel(ui);
+                    egui::CollapsingHeader::new("Preview request").show(ui, |ui| {
+                        ui.label(RichText::new(self.draft.request().preview()).monospace());
+                    });
+                }
+                Mode::Raw => self.raw_editor(ui),
             }
-            ui.weak("Nested objects, embeddings and other advanced types are shown read-only.");
-            ui.add_space(12.0);
-            self.pending_panel(ui);
             ui.add_space(8.0);
 
             if let Some(err) = &self.error {
@@ -132,12 +196,13 @@ impl SchemaEditorScreen {
                 }
                 let apply = ui.add_enabled(
                     self.can_apply() && client.is_some(),
-                    egui::Button::new(apply_label(&self.draft)),
+                    egui::Button::new(apply_label(&self.draft, self.mode)),
                 );
                 if apply.clicked()
                     && let Some(client) = client
+                    && let Some(request) = self.build_request()
                 {
-                    self.begin_apply(spawn_apply(&ctx, client, &self.draft));
+                    self.begin_apply(spawn_apply(&ctx, client, request));
                 }
                 if self.is_applying() {
                     ui.spinner();
@@ -145,6 +210,32 @@ impl SchemaEditorScreen {
             });
         });
         outcome
+    }
+
+    fn mode_toggle(&mut self, ui: &mut egui::Ui) {
+        let mut mode = self.mode;
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut mode, Mode::Form, "Form");
+            ui.selectable_value(&mut mode, Mode::Raw, "Raw JSON");
+        });
+        self.set_mode(mode);
+    }
+
+    fn raw_editor(&mut self, ui: &mut egui::Ui) {
+        ui.weak(
+            "This is the request body. Edits here are sent as written and are not carried \
+             back to the form.",
+        );
+        ui.add(
+            TextEdit::multiline(&mut self.raw)
+                .font(egui::TextStyle::Monospace)
+                .code_editor()
+                .desired_rows(14)
+                .desired_width(f32::INFINITY),
+        );
+        if let Some(message) = &self.raw_error {
+            ui.colored_label(ui.visuals().error_fg_color, message);
+        }
     }
 
     fn create_header(&mut self, ui: &mut egui::Ui) {
@@ -273,34 +364,30 @@ fn type_picker(ui: &mut egui::Ui, row: usize, field_type: &mut String) {
         });
 }
 
-fn apply_label(draft: &SchemaDraft) -> String {
-    if draft.is_create() {
-        "Create collection".to_owned()
-    } else {
-        let n = draft.change_count();
-        format!("Apply {n} change{}", if n == 1 { "" } else { "s" })
+fn apply_label(draft: &SchemaDraft, mode: Mode) -> String {
+    match (draft.is_create(), mode) {
+        (true, _) => "Create collection".to_owned(),
+        (false, Mode::Raw) => "Apply request".to_owned(),
+        (false, Mode::Form) => {
+            let n = draft.change_count();
+            format!("Apply {n} change{}", if n == 1 { "" } else { "s" })
+        }
     }
 }
 
 fn spawn_apply(
     ctx: &egui::Context,
     client: &Arc<SdkTypesenseClient>,
-    draft: &SchemaDraft,
+    request: Request,
 ) -> Applying {
     let client = Arc::clone(client);
-    match draft.alter_target() {
-        Some(name) => {
-            let (name, update) = (name.to_owned(), draft.to_update());
-            task::run(ctx.clone(), async move {
-                client.alter_collection(&name, update).await.map(drop)
-            })
-        }
-        None => {
-            let schema = draft.to_create();
-            task::run(ctx.clone(), async move {
-                client.create_collection(schema).await.map(drop)
-            })
-        }
+    match request {
+        Request::Alter { name, update } => task::run(ctx.clone(), async move {
+            client.alter_collection(&name, update).await.map(drop)
+        }),
+        Request::Create(schema) => task::run(ctx.clone(), async move {
+            client.create_collection(schema).await.map(drop)
+        }),
     }
 }
 
@@ -323,6 +410,82 @@ mod tests {
         let mut screen = SchemaEditorScreen::new(SchemaDraft::alter(&c));
         screen.draft.toggle_drop("legacy");
         screen
+    }
+
+    #[test]
+    fn switching_to_raw_fills_the_text_from_the_draft() {
+        let mut screen = screen_with_change();
+        assert_eq!(screen.mode(), Mode::Form);
+        screen.set_mode(Mode::Raw);
+        assert_eq!(screen.mode(), Mode::Raw);
+        assert!(screen.raw.contains("\"drop\": true"));
+    }
+
+    #[test]
+    fn switching_back_to_form_keeps_the_draft_and_drops_raw_edits() {
+        let mut screen = screen_with_change();
+        screen.set_mode(Mode::Raw);
+        screen.raw = "{}".into();
+        screen.set_mode(Mode::Form);
+        assert_eq!(screen.draft().change_count(), 1);
+        screen.set_mode(Mode::Raw);
+        assert!(screen.raw.contains("\"drop\": true"));
+    }
+
+    #[test]
+    fn form_mode_builds_the_request_from_the_draft() {
+        let mut screen = screen_with_change();
+        assert!(matches!(
+            screen.build_request(),
+            Some(Request::Alter { ref name, .. }) if name == "products"
+        ));
+    }
+
+    #[test]
+    fn raw_mode_parses_the_edited_text() {
+        let mut screen = screen_with_change();
+        screen.set_mode(Mode::Raw);
+        screen.raw = r#"{"fields":[{"name":"vec","type":"float[]","num_dim":3}]}"#.into();
+        let Some(Request::Alter { update, .. }) = screen.build_request() else {
+            panic!("expected an alter request");
+        };
+        assert_eq!(update.fields[0].name, "vec");
+        assert!(screen.raw_error.is_none());
+    }
+
+    #[test]
+    fn raw_mode_reports_bad_json_and_sends_nothing() {
+        let mut screen = screen_with_change();
+        screen.set_mode(Mode::Raw);
+        screen.raw = "{oops".into();
+        assert!(screen.build_request().is_none());
+        assert!(
+            screen
+                .raw_error
+                .as_deref()
+                .unwrap()
+                .starts_with("Invalid JSON")
+        );
+        screen.raw = r#"{"fields":[{"name":"a","type":"string"}]}"#.into();
+        assert!(screen.build_request().is_some());
+        assert!(screen.raw_error.is_none());
+    }
+
+    #[test]
+    fn raw_create_mode_parses_a_full_schema() {
+        let mut screen = SchemaEditorScreen::new(SchemaDraft::create());
+        screen.set_mode(Mode::Raw);
+        screen.raw = r#"{"name":"books","fields":[{"name":"t","type":"string"}]}"#.into();
+        assert!(matches!(screen.build_request(), Some(Request::Create(_))));
+    }
+
+    #[test]
+    fn raw_mode_can_apply_even_when_the_form_has_problems() {
+        let c = CollectionResponse::new("products".into(), vec![], 0, 1);
+        let mut screen = SchemaEditorScreen::new(SchemaDraft::alter(&c));
+        assert!(!screen.can_apply());
+        screen.set_mode(Mode::Raw);
+        assert!(screen.can_apply());
     }
 
     #[test]
@@ -398,9 +561,13 @@ mod tests {
     #[test]
     fn apply_label_counts_changes_or_names_the_create() {
         let mut screen = screen_with_change();
-        assert_eq!(apply_label(screen.draft()), "Apply 1 change");
+        assert_eq!(apply_label(screen.draft(), Mode::Form), "Apply 1 change");
         screen.draft.add_blank();
-        assert_eq!(apply_label(screen.draft()), "Apply 2 changes");
-        assert_eq!(apply_label(&SchemaDraft::create()), "Create collection");
+        assert_eq!(apply_label(screen.draft(), Mode::Form), "Apply 2 changes");
+        assert_eq!(
+            apply_label(&SchemaDraft::create(), Mode::Form),
+            "Create collection"
+        );
+        assert_eq!(apply_label(screen.draft(), Mode::Raw), "Apply request");
     }
 }
