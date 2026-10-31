@@ -4,7 +4,10 @@ use std::net::{Ipv4Addr, SocketAddr};
 use url::{Host, Url};
 
 use typesense::error::ApiError;
-use typesense::models::ApiStatsResponse;
+use typesense::models::{
+    ApiStatsResponse, CollectionResponse, CollectionSchema, CollectionUpdateSchema,
+    GetCollectionsParameters,
+};
 use typesense::{Client, Error as SdkError, NodeConfig};
 
 use super::error::{GevoError, TypesenseMsg};
@@ -22,6 +25,28 @@ pub trait TypesenseClient {
 
     /// Verifies the configured key is an admin key by listing `GET /keys`, which only admin keys may do.
     async fn check_auth(&self) -> Result<(), GevoError>;
+
+    /// `GET /collections`.
+    async fn list_collections(&self) -> Result<Vec<CollectionResponse>, GevoError>;
+
+    /// `GET /collections/{name}`.
+    async fn get_collection(&self, name: &str) -> Result<CollectionResponse, GevoError>;
+
+    /// `POST /collections`.
+    async fn create_collection(
+        &self,
+        schema: CollectionSchema<'static>,
+    ) -> Result<CollectionResponse, GevoError>;
+
+    /// `PATCH /collections/{name}`: adds, changes or drops fields in one request.
+    async fn alter_collection(
+        &self,
+        name: &str,
+        update: CollectionUpdateSchema,
+    ) -> Result<CollectionUpdateSchema, GevoError>;
+
+    /// `DELETE /collections/{name}`.
+    async fn delete_collection(&self, name: &str) -> Result<CollectionResponse, GevoError>;
 }
 
 /// `TypesenseClient` backed by the official `typesense` SDK.
@@ -103,6 +128,53 @@ impl TypesenseClient for SdkTypesenseClient {
             .map(drop)
             .map_err(map_error)
     }
+
+    async fn list_collections(&self) -> Result<Vec<CollectionResponse>, GevoError> {
+        self.client
+            .collections()
+            .retrieve(GetCollectionsParameters::new())
+            .await
+            .map_err(map_error)
+    }
+
+    async fn get_collection(&self, name: &str) -> Result<CollectionResponse, GevoError> {
+        self.client
+            .collection_schemaless(name)
+            .retrieve()
+            .await
+            .map_err(map_error)
+    }
+
+    async fn create_collection(
+        &self,
+        schema: CollectionSchema<'static>,
+    ) -> Result<CollectionResponse, GevoError> {
+        self.client
+            .collections()
+            .create(schema)
+            .await
+            .map_err(map_error)
+    }
+
+    async fn alter_collection(
+        &self,
+        name: &str,
+        update: CollectionUpdateSchema,
+    ) -> Result<CollectionUpdateSchema, GevoError> {
+        self.client
+            .collection_schemaless(name)
+            .update(update)
+            .await
+            .map_err(map_error)
+    }
+
+    async fn delete_collection(&self, name: &str) -> Result<CollectionResponse, GevoError> {
+        self.client
+            .collection_schemaless(name)
+            .delete()
+            .await
+            .map_err(map_error)
+    }
 }
 
 fn map_error<E>(err: SdkError<E>) -> GevoError
@@ -148,7 +220,6 @@ fn fallback_message(status: impl fmt::Display, body: &str) -> String {
 mod tests {
     use super::*;
     use typesense::error::ResponseContent;
-
     fn response_error(status: u16, body: &str) -> SdkError<()> {
         SdkError::Api(ApiError::ResponseError(ResponseContent {
             status: status.try_into().unwrap(),
@@ -281,6 +352,41 @@ mod tests {
         assert_eq!(mock.stats().await.unwrap(), ApiStatsResponse::new());
     }
 
+    #[tokio::test]
+    async fn mock_client_serves_collection_operations() {
+        let mut mock = MockTypesenseClient::new();
+        mock.expect_list_collections()
+            .returning(|| Ok(vec![CollectionResponse::new("books".into(), vec![], 3, 1)]));
+        mock.expect_get_collection()
+            .withf(|name| name == "books")
+            .returning(|_| Ok(CollectionResponse::new("books".into(), vec![], 3, 1)));
+        mock.expect_create_collection()
+            .withf(|schema| schema.name == "books")
+            .returning(|_| Ok(CollectionResponse::new("books".into(), vec![], 0, 1)));
+        mock.expect_alter_collection()
+            .withf(|name, _| name == "books")
+            .returning(|_, update| Ok(update));
+        mock.expect_delete_collection()
+            .withf(|name| name == "gone")
+            .returning(|_| Err(GevoError::Api(TypesenseMsg("Not Found".into()))));
+
+        assert_eq!(mock.list_collections().await.unwrap().len(), 1);
+        assert_eq!(mock.get_collection("books").await.unwrap().num_documents, 3);
+        let schema = CollectionSchema::new("books".into(), vec![]);
+        assert_eq!(mock.create_collection(schema).await.unwrap().name, "books");
+        let update = CollectionUpdateSchema::new(vec![]);
+        assert_eq!(
+            mock.alter_collection("books", update.clone())
+                .await
+                .unwrap(),
+            update
+        );
+        assert_eq!(
+            mock.delete_collection("gone").await.unwrap_err().category(),
+            "API"
+        );
+    }
+
     // Needs a real server: TYPESENSE_URL and TYPESENSE_API_KEY (admin).
     fn live_client() -> SdkTypesenseClient {
         let url = std::env::var("TYPESENSE_URL").expect("TYPESENSE_URL");
@@ -295,6 +401,43 @@ mod tests {
         assert!(client.health().await.unwrap());
         client.stats().await.unwrap();
         client.check_auth().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "requires a running Typesense"]
+    async fn live_collection_lifecycle() {
+        use typesense::models::Field;
+        let client = live_client();
+        let name = format!("gevo_test_{}", std::process::id());
+        let field = |n: &str| Field::new(n.into(), "string".into());
+
+        let created = client
+            .create_collection(CollectionSchema::new(
+                name.clone().into(),
+                vec![field("title")],
+            ))
+            .await
+            .unwrap();
+        assert_eq!(created.name, name);
+        assert!(
+            client
+                .list_collections()
+                .await
+                .unwrap()
+                .iter()
+                .any(|c| c.name == name)
+        );
+        assert_eq!(client.get_collection(&name).await.unwrap().fields.len(), 1);
+
+        client
+            .alter_collection(&name, CollectionUpdateSchema::new(vec![field("author")]))
+            .await
+            .unwrap();
+        assert_eq!(client.get_collection(&name).await.unwrap().fields.len(), 2);
+
+        client.delete_collection(&name).await.unwrap();
+        let err = client.get_collection(&name).await.unwrap_err();
+        assert_eq!(err.category(), "API");
     }
 
     #[tokio::test]
