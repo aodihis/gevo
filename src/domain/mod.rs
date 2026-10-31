@@ -1,5 +1,6 @@
 pub mod connection_service;
 pub mod credential_store;
+pub mod documents;
 pub mod error;
 pub mod profile;
 pub mod profile_store;
