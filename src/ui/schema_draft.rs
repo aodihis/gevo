@@ -215,6 +215,70 @@ impl SchemaDraft {
         }
         schema
     }
+
+    /// The request the form would send.
+    pub fn request(&self) -> Request {
+        match &self.target {
+            Target::Alter(name) => Request::Alter {
+                name: name.clone(),
+                update: self.to_update(),
+            },
+            Target::Create => Request::Create(self.to_create()),
+        }
+    }
+}
+
+/// A schema request ready to send, from the form or from hand-edited JSON.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Request {
+    Alter {
+        name: String,
+        update: CollectionUpdateSchema,
+    },
+    Create(CollectionSchema<'static>),
+}
+
+impl Request {
+    /// `PATCH /collections/{name}` or `POST /collections`, then the body.
+    pub fn preview(&self) -> String {
+        let line = match self {
+            Request::Alter { name, .. } => format!("PATCH /collections/{name}"),
+            Request::Create(_) => "POST /collections".to_owned(),
+        };
+        format!("{line}\n{}", self.body_json())
+    }
+
+    /// The pretty-printed JSON body, which is what the Raw JSON mode edits.
+    pub fn body_json(&self) -> String {
+        let json = match self {
+            Request::Alter { update, .. } => serde_json::to_string_pretty(update),
+            Request::Create(schema) => serde_json::to_string_pretty(schema),
+        };
+        json.unwrap_or_default()
+    }
+
+    pub fn parse_alter(name: &str, text: &str) -> Result<Self, String> {
+        let update: CollectionUpdateSchema = parse_json(text)?;
+        if update.fields.is_empty() {
+            return Err("The request has no fields.".to_owned());
+        }
+        Ok(Request::Alter {
+            name: name.to_owned(),
+            update,
+        })
+    }
+
+    pub fn parse_create(text: &str) -> Result<Self, String> {
+        let schema: CollectionSchema<'static> = parse_json(text)?;
+        if schema.name.trim().is_empty() {
+            return Err("Collection name is required.".to_owned());
+        }
+        Ok(Request::Create(schema))
+    }
+}
+
+fn parse_json<T: serde::de::DeserializeOwned>(text: &str) -> Result<T, String> {
+    serde_json::from_str(text).map_err(|e| format!("Invalid JSON: {e}"))
 }
 
 #[cfg(test)]
@@ -429,6 +493,90 @@ mod tests {
         assert_eq!(schema.name, "books");
         assert_eq!(schema.default_sorting_field.as_deref(), Some("year"));
         assert_eq!(schema.fields.len(), 1);
+    }
+
+    #[test]
+    fn the_form_request_matches_the_target() {
+        let mut alter = SchemaDraft::alter(&products());
+        alter.added = vec![named("x", "int32")];
+        assert!(matches!(
+            alter.request(),
+            Request::Alter { ref name, ref update } if name == "products" && update.fields.len() == 1
+        ));
+
+        let mut create = SchemaDraft::create();
+        create.name = "books".into();
+        create.added = vec![named("title", "string")];
+        assert!(matches!(create.request(), Request::Create(ref s) if s.name == "books"));
+    }
+
+    #[test]
+    fn preview_shows_the_method_path_and_pretty_body() {
+        let mut d = SchemaDraft::alter(&products());
+        d.toggle_drop("legacy_sku");
+        let preview = d.request().preview();
+        assert!(preview.starts_with("PATCH /collections/products\n{\n"));
+        assert!(preview.contains("\"drop\": true"));
+
+        let mut create = SchemaDraft::create();
+        create.name = "books".into();
+        create.added = vec![named("title", "string")];
+        assert!(
+            create
+                .request()
+                .preview()
+                .starts_with("POST /collections\n")
+        );
+    }
+
+    #[test]
+    fn raw_text_is_the_body_of_the_form_request() {
+        let mut d = SchemaDraft::alter(&products());
+        d.added = vec![named("x", "int32")];
+        let body = d.request().body_json();
+        assert!(body.contains("\"name\": \"x\""));
+        assert!(!body.contains("PATCH"));
+    }
+
+    #[test]
+    fn raw_update_text_is_parsed_into_a_request() {
+        let text = r#"{"fields":[{"name":"vec","type":"float[]","num_dim":4}]}"#;
+        let request = Request::parse_alter("products", text).unwrap();
+        let Request::Alter { name, update } = request else {
+            panic!("expected an alter");
+        };
+        assert_eq!(name, "products");
+        assert_eq!(update.fields[0].num_dim, Some(4));
+    }
+
+    #[test]
+    fn raw_update_needs_at_least_one_field() {
+        assert_eq!(
+            Request::parse_alter("p", r#"{"fields":[]}"#).unwrap_err(),
+            "The request has no fields."
+        );
+    }
+
+    #[test]
+    fn raw_create_text_is_parsed_and_needs_a_name() {
+        let ok = r#"{"name":"books","fields":[{"name":"t","type":"string"}]}"#;
+        assert!(matches!(Request::parse_create(ok), Ok(Request::Create(_))));
+        let blank = r#"{"name":" ","fields":[{"name":"t","type":"string"}]}"#;
+        assert_eq!(
+            Request::parse_create(blank).unwrap_err(),
+            "Collection name is required."
+        );
+    }
+
+    #[test]
+    fn malformed_raw_text_reports_the_json_error() {
+        let err = Request::parse_alter("p", "{not json").unwrap_err();
+        assert!(err.starts_with("Invalid JSON"), "{err}");
+        assert!(
+            Request::parse_create("[]")
+                .unwrap_err()
+                .starts_with("Invalid JSON")
+        );
     }
 
     #[test]
