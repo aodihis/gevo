@@ -1,3 +1,4 @@
+pub mod collections;
 pub mod confirm_delete;
 pub mod fonts;
 pub mod host_key_dialog;
