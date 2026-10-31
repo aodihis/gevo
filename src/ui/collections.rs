@@ -126,6 +126,11 @@ impl CollectionsScreen {
     }
 
     pub fn begin_load(&mut self, profile: Uuid, pending: Loading) {
+        if self.loaded_for != Some(profile) {
+            // Both name a collection on the previous profile's server.
+            self.confirm = None;
+            self.deleting = None;
+        }
         self.loaded_for = Some(profile);
         self.list = ListState::Loading(pending);
         self.action_error = None;
@@ -542,6 +547,41 @@ mod tests {
         assert!(!screen.poll());
         assert_eq!(names(&screen), ["b"]);
         assert!(!screen.is_deleting("a"));
+    }
+
+    #[test]
+    fn switching_profiles_drops_a_delete_issued_for_the_old_one() {
+        let mut screen = loaded(&["a"]);
+        let (tx, rx) = channel();
+        screen.begin_delete("a".into(), rx);
+        screen.ask_delete("a", "prod");
+
+        let (list_tx, list_rx) = channel();
+        screen.begin_load(Uuid::new_v4(), list_rx);
+        list_tx.send(Ok(vec![collection("a", 1)])).unwrap();
+        let _ = tx.send(Ok(()));
+        screen.poll();
+
+        assert_eq!(names(&screen), ["a"]);
+        assert!(!screen.is_deleting("a"));
+        assert_eq!(screen.take_confirmed(), None);
+    }
+
+    #[test]
+    fn refreshing_the_same_profile_keeps_a_running_delete() {
+        let id = Uuid::new_v4();
+        let mut screen = CollectionsScreen::default();
+        let (tx, rx) = channel();
+        screen.begin_load(id, rx);
+        tx.send(Ok(vec![collection("a", 1)])).unwrap();
+        screen.poll();
+        let (_del_tx, del_rx) = channel();
+        screen.begin_delete("a".into(), del_rx);
+
+        let (_tx2, rx2) = channel();
+        screen.begin_load(id, rx2);
+
+        assert!(screen.is_deleting("a"));
     }
 
     #[test]
