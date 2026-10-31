@@ -6,6 +6,8 @@ pub mod profile_edit;
 pub mod profile_form;
 pub mod profiles;
 pub mod route;
+pub mod schema_draft;
+pub mod schema_editor;
 pub mod session;
 pub mod settings;
 pub mod shell;
